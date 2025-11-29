@@ -8,11 +8,11 @@ members = [
 default-members = ["fir", "fir-common"]
 
 [workspace.package]
-license = "MIT OR Apache-2.0"
+license = "GPLv2"
 edition = "2024"
 
 [workspace.dependencies]
-aya = { version = "0.13.1", default-features = false }
+aya = { version = "0.13.1", default-features = true }
 aya-build = { version = "0.1.2", default-features = false }
 aya-ebpf = { version = "0.1.1", default-features = false }
 aya-log = { version = "0.2.1", default-features = false }
