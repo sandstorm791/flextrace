@@ -1,4 +1,4 @@
-# fir
+# flextrace
 
 ## Prerequisites
 
