@@ -1,0 +1,40 @@
+name: release_unstable
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: make an unstable release
+    runs-on: [ubuntu-latest, x64]
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: add the target
+      run: rustup component add rust-src --toolchain nightly-x86_64-unknown-linux-gnu
+    - name: install bpf-linker
+      run: cargo install bpf-linker
+    - name: Build
+      run: cargo build --release --verbose
+    - name: Run tests
+      run: cargo test --verbose
+
+    - name: create release
+      uses: comnoco/create-release@v2
+      env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      with:
+          tag_name: ${{ github.ref }}
+          release_name: unstable x64 release ${{ github.ref }}
+          body: |
+            flextrace automatic unstable release x64
+            
+          draft: false
+          prerelease: false
