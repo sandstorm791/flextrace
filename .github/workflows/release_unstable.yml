@@ -12,7 +12,7 @@ env:
 jobs:
   build:
     name: make an unstable release
-    runs-on: [ubuntu-latest, x64]
+    runs-on: [ubuntu-latest]
 
     steps:
     - uses: actions/checkout@v4
