@@ -26,7 +26,7 @@ jobs:
       run: cargo test --verbose
 
     - name: create release
-      uses: comnoco/create-release@v2
+      uses: actions/create-release@v1
       env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
