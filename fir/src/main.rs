@@ -8,6 +8,7 @@ use libc::pid_t;
 //#[rustfmt::skip]
 use log::{debug, warn};
 use tokio::io::{unix::AsyncFd};
+use std::collections::HashMap as StdHashMap;
 use std::sync::mpsc;
 use std::ffi::CStr;
 
@@ -28,24 +29,33 @@ struct Opt {
     #[arg(short, long, required = true, value_name = "EVENTS", help = "list of perf events to profile")]
     events: Vec<String>,
 
-    #[arg(short = 'x', long, help = "define events to ignore from certain processes: pid[event1,event2,event3]\nor just the pid to drop everything from that process")]
+    #[arg(short = 'x', long, help = "define events to ignore from certain processes: pid:event1,event2,event3\nor just the pid to drop everything from that process")]
     filter_exclude: Option<Vec<String>>,
 }
 
 impl Opt {
-    fn parse_filter(&self) -> anyhow::Result<()> {
+    fn parse_filter(&self) -> anyhow::Result<StdHashMap<u32, [PerfEventType; PERF_EVENT_VARIANTS]>> {
         if let Some(filter) = &self.filter_exclude {
+            let parsed: StdHashMap<u32, [PerfEventType; PERF_EVENT_VARIANTS]> = StdHashMap::new();
+
             for i in filter {
                 let pid: pid_t;
                 let events: [PerfEventType; PERF_EVENT_VARIANTS] = [PerfEventType::None; PERF_EVENT_VARIANTS];
 
-                if let Some(pos) = i.find("[") {
+                // lazy parsing
+                if let Some(pos1) = i.find(":") {
+                    
+                }
+                else {
+                    let foo: u32 = i.parse()?;
 
-                } else { return Err(anyhow::anyhow!("bad filter arguments, no [ found")); }
-        }
-        }
+                    
+                }
+            }
 
-        Ok(())
+            Ok(parsed)
+        }
+        else { return Err(anyhow::Error::msg("no filter input, if youre seeing this error it means the code is messed up cause we should've caught this earlier and ignored the argument")); }
     }
 }
 
