@@ -15,7 +15,7 @@ pub static PERF_EVENTS: RingBuf = RingBuf::with_byte_size(1000 * 3000, 0); // ~3
 pub static FILTER_PIDS: HashMap<u32, [PerfEventType; PERF_EVENT_VARIANTS]> = HashMap::with_max_entries(10000, 0);
 
 #[perf_event]
-pub fn cache_miss(ctx: PerfEventContext) -> u32 {
+pub fn h3_cache_miss(ctx: PerfEventContext) -> u32 {
     return handle_perf_event(ctx, PerfEventType::CacheMiss);
 }
 

@@ -1,5 +1,7 @@
 #![no_std]
 
+use core::result::Result;
+
 pub const PERF_EVENT_VARIANTS: usize = 2;
 
 #[derive(Default, Copy, Clone, Debug)]
@@ -13,6 +15,8 @@ pub struct PerfSample {
     pub cmd: [u8; 16],
 }
 
+// since we want to have one map for all types of perf events we'll use this internally
+// instead of the aya generated perf ids that are category dependent
 #[derive(Default, Copy, Clone, Debug, PartialEq, Eq)]
 #[repr(u8)]
 pub enum PerfEventType {
@@ -20,4 +24,15 @@ pub enum PerfEventType {
     None,
     Any,
     CacheMiss,
+}
+
+impl PerfEventType {
+    pub fn from_str(thing: &str) -> Result<PerfEventType, ()> {
+        match thing {
+            "none" => Ok(PerfEventType::None),
+            "any" => Ok(PerfEventType::Any),
+            "cache_miss" => Ok(PerfEventType::CacheMiss),
+            _ => Err(()),
+        }
+    }
 }

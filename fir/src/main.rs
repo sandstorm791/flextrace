@@ -36,21 +36,22 @@ struct Opt {
 impl Opt {
     fn parse_filter(&self) -> anyhow::Result<StdHashMap<u32, [PerfEventType; PERF_EVENT_VARIANTS]>> {
         if let Some(filter) = &self.filter_exclude {
-            let parsed: StdHashMap<u32, [PerfEventType; PERF_EVENT_VARIANTS]> = StdHashMap::new();
+            let mut parsed: StdHashMap<u32, [PerfEventType; PERF_EVENT_VARIANTS]> = StdHashMap::new();
 
             for i in filter {
                 let pid: pid_t;
                 let events: [PerfEventType; PERF_EVENT_VARIANTS] = [PerfEventType::None; PERF_EVENT_VARIANTS];
 
                 // lazy parsing
-                if let Some(pos1) = i.find(":") {
-                    
-                }
-                else {
-                    let foo: u32 = i.parse()?;
 
-                    
+                if let Some(pos1) = i.find(":") {
+
+                    if let Some(pos2) = i.find(",") {
+                    }
+                    else { parsed.insert(i[..pos1])?, PerfEventType::from_str(thing)
                 }
+                // if no events specified with that pid, just ignore all of it
+                else { parsed.insert(i.parse()?, [PerfEventType::Any; PERF_EVENT_VARIANTS]); }
             }
 
             Ok(parsed)
