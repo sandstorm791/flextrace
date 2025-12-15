@@ -4,11 +4,9 @@ use aya::maps::{MapData, RingBuf};
 use aya::util::online_cpus;
 use clap::{Parser};
 use fir_common::{PerfSample, PerfEventType, PERF_EVENT_VARIANTS};
-use libc::pid_t;
 //#[rustfmt::skip]
 use log::{debug, warn};
-use tokio::io::{unix::AsyncFd};
-use std::collections::HashMap as StdHashMap;
+use tokio::io::unix::AsyncFd;
 use std::sync::mpsc;
 use std::ffi::CStr;
 
@@ -29,36 +27,42 @@ struct Opt {
     #[arg(short, long, required = true, value_name = "EVENTS", help = "list of perf events to profile")]
     events: Vec<String>,
 
-    #[arg(short = 'x', long, help = "define events to ignore from certain processes: pid:event1,event2,event3\nor just the pid to drop everything from that process")]
-    filter_exclude: Option<Vec<String>>,
+    #[arg(short = 'x', long, value_parser = parse_filter, help = "define events to ignore from certain processes: pid:event1,event2,event3\nor just the pid to drop everything from that process")]
+    filter_exclude: Vec<(String, String)>,
 }
 
-impl Opt {
-    fn parse_filter(&self) -> anyhow::Result<StdHashMap<u32, [PerfEventType; PERF_EVENT_VARIANTS]>> {
-        if let Some(filter) = &self.filter_exclude {
-            let mut parsed: StdHashMap<u32, [PerfEventType; PERF_EVENT_VARIANTS]> = StdHashMap::new();
+// im pretty sure clap automaticlly handles the vec<> part and we
+// only have to worry about handling one str at a time
+fn parse_filter(filter: &str) -> anyhow::Result<(u32, [PerfEventType; PERF_EVENT_VARIANTS])> {
+    if let Some(colon_index) = filter.find(":") {
+        let mut events = [PerfEventType::None; PERF_EVENT_VARIANTS];
+        let mut events_index = 0;
 
-            for i in filter {
-                let pid: pid_t;
-                let events: [PerfEventType; PERF_EVENT_VARIANTS] = [PerfEventType::None; PERF_EVENT_VARIANTS];
+        let mut to_process = &filter.clone()[colon_index + 1..];
 
-                // lazy parsing
+        while let Some(comma_index) = to_process.find(",") {
+            if events_index >= PERF_EVENT_VARIANTS { return Err(anyhow::Error::msg("too many event arguments for some pid")); }
+            
+            events[events_index] = PerfEventType::from_str(&to_process[..comma_index])?;
 
-                if let Some(pos1) = i.find(":") {
-
-                    if let Some(pos2) = i.find(",") {
-                    }
-                    else { parsed.insert(i[..pos1])?, PerfEventType::from_str(thing)
-                }
-                // if no events specified with that pid, just ignore all of it
-                else { parsed.insert(i.parse()?, [PerfEventType::Any; PERF_EVENT_VARIANTS]); }
+            if (comma_index != events.len()) {
+                to_process = &to_process[comma_index + 1..];
             }
+            else { to_process = ""; }
 
-            Ok(parsed)
+            events_index += 1;
         }
-        else { return Err(anyhow::Error::msg("no filter input, if youre seeing this error it means the code is messed up cause we should've caught this earlier and ignored the argument")); }
+
+        if (to_process != "" && events_index >= PERF_EVENT_VARIANTS) {
+            return Err(anyhow::Error::msg("too many events for thing"));
+        }
+        events[events_index] = PerfEventType::from_str(&to_process)?;
+
+        Ok((filter[..colon_index].parse()?, events))
     }
+    else { Ok((filter.parse()?, [PerfEventType::Any; PERF_EVENT_VARIANTS])) }
 }
+
 
 // example:
 // fir -gvl fir.log -e cache_miss,branch_miss,context_switch,fs_event,random_thing -x node[fs_event] -x docker[fs_event]

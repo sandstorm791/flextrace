@@ -1,8 +1,26 @@
 #![no_std]
+use core::{error::Error, fmt};
 
-use core::result::Result;
+pub const PERF_EVENT_VARIANTS: usize = 3;
 
-pub const PERF_EVENT_VARIANTS: usize = 2;
+#[derive(Debug)]
+pub enum FlextraceError {
+    TooManyEvents,
+    BadArgument,
+    NoSuchPerfEventType,
+}
+
+impl fmt::Display for FlextraceError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Self::TooManyEvents => write!(f, "too many events for one process, max is {PERF_EVENT_VARIANTS}"),
+            Self::BadArgument => write!(f, "bad arguments lol"),
+            Self::NoSuchPerfEventType => write!(f, "the perf event type specified does not exist or is not currently supported"),
+        }
+    }
+}
+
+impl Error for FlextraceError {}
 
 #[derive(Default, Copy, Clone, Debug)]
 #[repr(C)]
@@ -27,12 +45,12 @@ pub enum PerfEventType {
 }
 
 impl PerfEventType {
-    pub fn from_str(thing: &str) -> Result<PerfEventType, ()> {
+    pub fn from_str(thing: &str) -> Result<PerfEventType, FlextraceError> {
         match thing {
             "none" => Ok(PerfEventType::None),
             "any" => Ok(PerfEventType::Any),
             "cache_miss" => Ok(PerfEventType::CacheMiss),
-            _ => Err(()),
+            _ => Err(FlextraceError::NoSuchPerfEventType),
         }
     }
 }
