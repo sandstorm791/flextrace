@@ -1,4 +1,7 @@
 # flextrace
+flextrace is an ebpf-powered application profiling toolkit for linux.
+
+hopefully soon gonna split this into libflextrace and various frontends
 
 ## Prerequisites
 
