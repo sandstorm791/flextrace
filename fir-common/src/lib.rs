@@ -36,10 +36,10 @@ pub struct PerfSample {
 // since we want to have one map for all types of perf events we'll use this internally
 // instead of the aya generated perf ids that are category dependent
 #[derive(Default, Copy, Clone, Debug, PartialEq, Eq)]
-#[repr(u8)]
 pub enum PerfEventType {
     #[default]
     None,
+    
     Any,
     CacheMiss,
 }
@@ -52,5 +52,17 @@ impl PerfEventType {
             "cache_miss" => Ok(PerfEventType::CacheMiss),
             _ => Err(FlextraceError::NoSuchPerfEventType),
         }
+    }
+
+    pub fn ebpf_from_self(&self) -> Option<&'static str> {
+        match self {
+            Self::None => None,
+            Self::Any => Some("generic_perf_handler"),
+            Self::CacheMiss => Some("cache_miss"),
+        }
+    }
+
+    pub fn ebpf_from_str(thing: &str) -> Option<&str> {
+        return PerfEventType::ebpf_from_self(&PerfEventType::from_str(thing).unwrap());
     }
 }

@@ -95,7 +95,23 @@ async fn main() -> anyhow::Result<()> {
         warn!("failed to initialize eBPF logger: {e}");
     }
 
-    // perf stuff
+    for event_arg in opt.events {
+        if let Some(event) = PerfEventType::ebpf_from_str(&event_arg) {
+            let perf_event: &mut PerfEvent = ebpf.program_mut(event).unwrap().try_into()?;
+            
+            for cpu in online_cpus().map_err(|(_, error)| error)? {
+                perf_event.attach(
+                    PerfTypeId::Hardware,
+                    PERF_COUNT_HW_CACHE_MISSES as u64,
+                    PerfEventScope::AllProcessesOneCpu { cpu },
+                    SamplePolicy::Period(1000000),
+                    true,
+                )?; 
+            }
+        }
+    }
+
+    /* perf stuff
 
     //cache misses
     let perf_prog_cachemiss: &mut PerfEvent = ebpf.program_mut("cache_miss").unwrap().try_into()?;
@@ -115,6 +131,8 @@ async fn main() -> anyhow::Result<()> {
 
         
     }
+
+    */
     // maps
     // some of ts prob looks unnecessary rn, such as declaring stuff outside the
     // thread just to clone it and use it only in that thread (for now) but i promise theres a method here
