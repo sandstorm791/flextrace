@@ -1,5 +1,5 @@
 use anyhow::Error;
-use aya::programs::{PerfEventScope, PerfTypeId, PerfEvent, SamplePolicy, perf_event::perf_hw_id::*};
+use aya::programs::{PerfEvent, PerfEventScope, PerfTypeId, SamplePolicy};
 use aya::maps::{MapData, RingBuf};
 use aya::util::online_cpus;
 use clap::{Parser};
@@ -38,14 +38,14 @@ fn parse_filter(filter: &str) -> anyhow::Result<(u32, [PerfEventType; PERF_EVENT
         let mut events = [PerfEventType::None; PERF_EVENT_VARIANTS];
         let mut events_index = 0;
 
-        let mut to_process = &filter.clone()[colon_index + 1..];
+        let mut to_process = &filter[colon_index + 1..];
 
         while let Some(comma_index) = to_process.find(",") {
             if events_index >= PERF_EVENT_VARIANTS { return Err(anyhow::Error::msg("too many event arguments for some pid")); }
             
             events[events_index] = PerfEventType::from_str(&to_process[..comma_index])?;
 
-            if (comma_index != events.len()) {
+            if comma_index != events.len() {
                 to_process = &to_process[comma_index + 1..];
             }
             else { to_process = ""; }
@@ -53,7 +53,7 @@ fn parse_filter(filter: &str) -> anyhow::Result<(u32, [PerfEventType; PERF_EVENT
             events_index += 1;
         }
 
-        if (to_process != "" && events_index >= PERF_EVENT_VARIANTS) {
+        if to_process != "" && events_index >= PERF_EVENT_VARIANTS {
             return Err(anyhow::Error::msg("too many events for thing"));
         }
         events[events_index] = PerfEventType::from_str(&to_process)?;
@@ -105,14 +105,18 @@ async fn main() -> anyhow::Result<()> {
 
             let perf_id: u64;
 
-            match perf_type_id {
-                perf_type_
+            match perf_event_category {
+                PerfTypeId::Hardware => perf_id = perf_event_enum.perf_hw_id()? as u64,
+                PerfTypeId::Software => perf_id = perf_event_enum.perf_sw_id()? as u64,
+                _ => panic!("please fix this!!! add a handler for perf event types other\nthan hardware and software!!!!!\n\nif you're seeing this in prod i give you full permission to slap me in the face next time you see me"),
             }
+
+            perf_event.load()?;
             
             for cpu in online_cpus().map_err(|(_, error)| error)? {
                 perf_event.attach(
-                    perf_event_enum.perf_event_category(),
-                    perf_event_enum.perf_hw_id()? as u64,
+                    perf_event_category.clone(),
+                    perf_id,
                     PerfEventScope::AllProcessesOneCpu { cpu },
                     SamplePolicy::Period(1000000),
                     true,

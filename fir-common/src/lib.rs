@@ -1,7 +1,11 @@
 #![no_std]
 use core::{error::Error, fmt};
 
-use aya_obj::generated::{perf_hw_id, perf_sw_ids, perf_type_id};
+#[cfg(feature = "user")]
+use aya_obj::generated::{perf_hw_id, perf_sw_ids};
+
+#[cfg(feature = "user")]
+use aya::programs::PerfTypeId;
 
 pub const PERF_EVENT_VARIANTS: usize = 3;
 
@@ -72,13 +76,17 @@ impl PerfEventType {
         return PerfEventType::ebpf_from_self(&PerfEventType::from_str(thing).unwrap());
     }
 
-    pub fn perf_event_category(&self) -> Result<perf_type_id, FlextraceError> {
+
+    #[cfg(feature = "user")]
+    pub fn perf_event_category(&self) -> Result<PerfTypeId, FlextraceError> {
         match self {
-            PerfEventType::CacheMiss => Ok(perf_type_id::PERF_TYPE_HARDWARE),
+            PerfEventType::CacheMiss => Ok(PerfTypeId::Hardware),
             _ => Err(FlextraceError::NoPerfEventCategory),
         }
     }
 
+
+    #[cfg(feature = "user")]
     // this function will return an error if the perf event is not a hardware event
     pub fn perf_hw_id(&self) -> Result<perf_hw_id, FlextraceError> {
         match self {
@@ -87,6 +95,7 @@ impl PerfEventType {
         }
     }
 
+    #[cfg(feature = "user")]
     pub fn perf_sw_id(&self) -> Result<perf_sw_ids, FlextraceError> {
         match self {
             _ => Err(FlextraceError::NoPerfSwId),
