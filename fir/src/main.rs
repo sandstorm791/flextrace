@@ -95,14 +95,24 @@ async fn main() -> anyhow::Result<()> {
         warn!("failed to initialize eBPF logger: {e}");
     }
 
+    // i cant believe this actually works
+    // forgive me
     for event_arg in opt.events {
         if let Some(event) = PerfEventType::ebpf_from_str(&event_arg) {
             let perf_event: &mut PerfEvent = ebpf.program_mut(event).unwrap().try_into()?;
+            let perf_event_enum = PerfEventType::from_str(&event_arg)?;
+            let perf_event_category = perf_event_enum.perf_event_category()?;
+
+            let perf_id: u64;
+
+            match perf_type_id {
+                perf_type_
+            }
             
             for cpu in online_cpus().map_err(|(_, error)| error)? {
                 perf_event.attach(
-                    PerfTypeId::Hardware,
-                    PERF_COUNT_HW_CACHE_MISSES as u64,
+                    perf_event_enum.perf_event_category(),
+                    perf_event_enum.perf_hw_id()? as u64,
                     PerfEventScope::AllProcessesOneCpu { cpu },
                     SamplePolicy::Period(1000000),
                     true,
@@ -111,28 +121,6 @@ async fn main() -> anyhow::Result<()> {
         }
     }
 
-    /* perf stuff
-
-    //cache misses
-    let perf_prog_cachemiss: &mut PerfEvent = ebpf.program_mut("cache_miss").unwrap().try_into()?;
-    perf_prog_cachemiss.load()?;
-
-    // attatching stuff
-    //cache misses 
-
-    for cpu in online_cpus().map_err(|(_, error)| error)? {
-        perf_prog_cachemiss.attach(
-            PerfTypeId::Hardware,
-            PERF_COUNT_HW_CACHE_MISSES as u64,
-            PerfEventScope::AllProcessesOneCpu { cpu },
-            SamplePolicy::Period(1000000),
-            true,
-        )?;
-
-        
-    }
-
-    */
     // maps
     // some of ts prob looks unnecessary rn, such as declaring stuff outside the
     // thread just to clone it and use it only in that thread (for now) but i promise theres a method here
@@ -194,4 +182,3 @@ async fn ringbuf_read<T: Copy>(fd: &mut AsyncFd<RingBuf<MapData>>) -> Result<Vec
         readguard.clear_ready();
         Ok(items)
 }
-

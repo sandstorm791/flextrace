@@ -1,6 +1,8 @@
 #![no_std]
 use core::{error::Error, fmt};
 
+use aya_obj::generated::{perf_hw_id, perf_sw_ids, perf_type_id};
+
 pub const PERF_EVENT_VARIANTS: usize = 3;
 
 #[derive(Debug)]
@@ -8,6 +10,9 @@ pub enum FlextraceError {
     TooManyEvents,
     BadArgument,
     NoSuchPerfEventType,
+    NoPerfEventCategory,
+    NoPerfHwId,
+    NoPerfSwId,
 }
 
 impl fmt::Display for FlextraceError {
@@ -16,6 +21,7 @@ impl fmt::Display for FlextraceError {
             Self::TooManyEvents => write!(f, "too many events for one process, max is {PERF_EVENT_VARIANTS}"),
             Self::BadArgument => write!(f, "bad arguments lol"),
             Self::NoSuchPerfEventType => write!(f, "the perf event type specified does not exist or is not currently supported"),
+            _ => write!(f, "whatever error this is i was too lazy to write an error msg for it"),
         }
     }
 }
@@ -65,4 +71,26 @@ impl PerfEventType {
     pub fn ebpf_from_str(thing: &str) -> Option<&str> {
         return PerfEventType::ebpf_from_self(&PerfEventType::from_str(thing).unwrap());
     }
+
+    pub fn perf_event_category(&self) -> Result<perf_type_id, FlextraceError> {
+        match self {
+            PerfEventType::CacheMiss => Ok(perf_type_id::PERF_TYPE_HARDWARE),
+            _ => Err(FlextraceError::NoPerfEventCategory),
+        }
+    }
+
+    // this function will return an error if the perf event is not a hardware event
+    pub fn perf_hw_id(&self) -> Result<perf_hw_id, FlextraceError> {
+        match self {
+            PerfEventType::CacheMiss => Ok(perf_hw_id::PERF_COUNT_HW_CACHE_MISSES),
+            _ => Err(FlextraceError::NoPerfHwId),
+        }
+    }
+
+    pub fn perf_sw_id(&self) -> Result<perf_sw_ids, FlextraceError> {
+        match self {
+            _ => Err(FlextraceError::NoPerfSwId),
+        }
+    }
+
 }
