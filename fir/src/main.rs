@@ -1,5 +1,5 @@
 use anyhow::Error;
-use aya::programs::{PerfEventScope, PerfTypeId, PerfEvent, SamplePolicy, perf_event::perf_hw_id::*};
+use aya::programs::{PerfEvent, PerfEventScope, PerfTypeId, SamplePolicy};
 use aya::maps::{MapData, RingBuf};
 use aya::util::online_cpus;
 use clap::{Parser};
@@ -38,14 +38,14 @@ fn parse_filter(filter: &str) -> anyhow::Result<(u32, [PerfEventType; PERF_EVENT
         let mut events = [PerfEventType::None; PERF_EVENT_VARIANTS];
         let mut events_index = 0;
 
-        let mut to_process = &filter.clone()[colon_index + 1..];
+        let mut to_process = &filter[colon_index + 1..];
 
         while let Some(comma_index) = to_process.find(",") {
             if events_index >= PERF_EVENT_VARIANTS { return Err(anyhow::Error::msg("too many event arguments for some pid")); }
             
             events[events_index] = PerfEventType::from_str(&to_process[..comma_index])?;
 
-            if (comma_index != events.len()) {
+            if comma_index != events.len() {
                 to_process = &to_process[comma_index + 1..];
             }
             else { to_process = ""; }
@@ -53,7 +53,7 @@ fn parse_filter(filter: &str) -> anyhow::Result<(u32, [PerfEventType; PERF_EVENT
             events_index += 1;
         }
 
-        if (to_process != "" && events_index >= PERF_EVENT_VARIANTS) {
+        if to_process != "" && events_index >= PERF_EVENT_VARIANTS {
             return Err(anyhow::Error::msg("too many events for thing"));
         }
         events[events_index] = PerfEventType::from_str(&to_process)?;
@@ -95,26 +95,36 @@ async fn main() -> anyhow::Result<()> {
         warn!("failed to initialize eBPF logger: {e}");
     }
 
-    // perf stuff
+    // i cant believe this actually works
+    // forgive me
+    for event_arg in opt.events {
+        if let Some(event) = PerfEventType::ebpf_from_str(&event_arg) {
+            let perf_event: &mut PerfEvent = ebpf.program_mut(event).unwrap().try_into()?;
+            let perf_event_enum = PerfEventType::from_str(&event_arg)?;
+            let perf_event_category = perf_event_enum.perf_event_category()?;
 
-    //cache misses
-    let perf_prog_cachemiss: &mut PerfEvent = ebpf.program_mut("cache_miss").unwrap().try_into()?;
-    perf_prog_cachemiss.load()?;
+            let perf_id: u64;
 
-    // attatching stuff
-    //cache misses 
+            match perf_event_category {
+                PerfTypeId::Hardware => perf_id = perf_event_enum.perf_hw_id()? as u64,
+                PerfTypeId::Software => perf_id = perf_event_enum.perf_sw_id()? as u64,
+                _ => panic!("please fix this!!! add a handler for perf event types other\nthan hardware and software!!!!!\n\nif you're seeing this in prod i give you full permission to slap me in the face next time you see me"),
+            }
 
-    for cpu in online_cpus().map_err(|(_, error)| error)? {
-        perf_prog_cachemiss.attach(
-            PerfTypeId::Hardware,
-            PERF_COUNT_HW_CACHE_MISSES as u64,
-            PerfEventScope::AllProcessesOneCpu { cpu },
-            SamplePolicy::Period(1000000),
-            true,
-        )?;
-
-        
+            perf_event.load()?;
+            
+            for cpu in online_cpus().map_err(|(_, error)| error)? {
+                perf_event.attach(
+                    perf_event_category.clone(),
+                    perf_id,
+                    PerfEventScope::AllProcessesOneCpu { cpu },
+                    SamplePolicy::Period(1000000),
+                    true,
+                )?; 
+            }
+        }
     }
+
     // maps
     // some of ts prob looks unnecessary rn, such as declaring stuff outside the
     // thread just to clone it and use it only in that thread (for now) but i promise theres a method here
@@ -176,4 +186,3 @@ async fn ringbuf_read<T: Copy>(fd: &mut AsyncFd<RingBuf<MapData>>) -> Result<Vec
         readguard.clear_ready();
         Ok(items)
 }
-

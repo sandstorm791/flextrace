@@ -598,6 +598,7 @@ name = "fir-common"
 version = "0.1.0"
 dependencies = [
  "aya",
+ "aya-obj",
 ]
 
 [[package]]

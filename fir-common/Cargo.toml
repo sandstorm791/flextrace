@@ -7,10 +7,11 @@ license.workspace = true
 
 [features]
 default = []
-user = ["aya"]
+user = ["dep:aya-obj", "dep:aya"]
 
 [dependencies]
-aya = { workspace = true, optional = true }
+aya-obj = { version = "0.2", optional = true, default-features = false }
+aya = { workspace = true, optional = true}
 
 [lib]
 path = "src/lib.rs"
