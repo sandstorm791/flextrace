@@ -1,6 +1,6 @@
 #![no_std]
 #![no_main]
-use aya_ebpf::{EbpfContext};
+use aya_ebpf::{EbpfContext, bpf_printk};
 use aya_ebpf::macros::{map, perf_event};
 use aya_ebpf::programs::{PerfEventContext};
 use aya_ebpf::maps::{HashMap, RingBuf};
@@ -15,7 +15,7 @@ pub static PERF_EVENTS: RingBuf = RingBuf::with_byte_size(1000 * 3000, 0); // ~3
 pub static FILTER_PIDS: HashMap<u32, [PerfEventType; PERF_EVENT_VARIANTS]> = HashMap::with_max_entries(10000, 0);
 
 #[perf_event]
-pub fn cache_miss(ctx: PerfEventContext) -> u32 {
+pub fn event_cache_miss(ctx: PerfEventContext) -> u32 {
     return handle_perf_event(ctx, PerfEventType::CacheMiss);
 }
 
@@ -41,6 +41,9 @@ fn handle_perf_event(ctx: PerfEventContext, e_type: PerfEventType) -> u32 {
     if let Some(mut buf) = PERF_EVENTS.reserve::<PerfSample>(0) {
         buf.write(sample);
         buf.submit(0);
+    }
+    else {
+        unsafe { bpf_printk!(b" !!! could not reserve space in PERF_EVENTS buffer !!!"); }
     }
 
     0

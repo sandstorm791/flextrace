@@ -176,11 +176,6 @@ async fn ringbuf_read<T: Copy>(fd: &mut AsyncFd<RingBuf<MapData>>) -> Result<Vec
         Ok(count)
     }).unwrap().unwrap();
 
-        //debug
-        if count_processed > 1 {
-            println!("rate of ringbuf writing breifly surpassed userspace thread's ability to read");
-        }
-
         println!("ringbuf processed {} items", count_processed);
 
         readguard.clear_ready();
