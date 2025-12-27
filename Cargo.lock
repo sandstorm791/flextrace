@@ -576,7 +576,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "fir"
+name = "flextrace"
 version = "0.1.0"
 dependencies = [
  "anyhow",
@@ -586,15 +586,15 @@ dependencies = [
  "clap",
  "clap-help",
  "env_logger",
- "fir-common",
- "fir-ebpf",
+ "flextrace-common",
+ "flextrace-ebpf",
  "libc",
  "log",
  "tokio",
 ]
 
 [[package]]
-name = "fir-common"
+name = "flextrace-common"
 version = "0.1.0"
 dependencies = [
  "aya",
@@ -605,12 +605,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "fir-ebpf"
+name = "flextrace-ebpf"
 version = "0.1.0"
 dependencies = [
  "aya-ebpf",
  "aya-log-ebpf",
- "fir-common",
+ "flextrace-common",
  "num_enum",
  "which",
 ]

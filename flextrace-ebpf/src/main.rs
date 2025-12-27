@@ -6,7 +6,7 @@ use aya_ebpf::{EbpfContext, bpf_printk};
 use aya_ebpf::macros::{map, perf_event};
 use aya_ebpf::programs::{PerfEventContext};
 use aya_ebpf::maps::{HashMap, RingBuf};
-use fir_common::{PerfSample, PerfEventType, PERF_EVENT_VARIANTS};
+use flextrace_common::{PerfSample, PerfEventType, PERF_EVENT_VARIANTS};
 
 #[map]
 pub static PERF_EVENTS: RingBuf = RingBuf::with_byte_size(1000 * 3000, 0); // ~3MB, exact amount handled by aya
