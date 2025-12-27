@@ -8,6 +8,7 @@ fir-common = { path = "../fir-common", default-features = false }
 
 aya-ebpf = { workspace = true }
 aya-log-ebpf = { workspace = true }
+num_enum = { version = "0.7.5", default-features = false }
 
 [build-dependencies]
 which = { workspace = true }

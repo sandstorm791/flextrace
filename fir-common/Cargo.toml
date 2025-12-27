@@ -12,6 +12,9 @@ user = ["dep:aya-obj", "dep:aya"]
 [dependencies]
 aya-obj = { version = "0.2", optional = true, default-features = false }
 aya = { workspace = true, optional = true}
+aya-ebpf.workspace = true
+aya-log-common = "0.1.15"
+num_enum = { version = "0.7.5", default-features = false }
 
 [lib]
 path = "src/lib.rs"
