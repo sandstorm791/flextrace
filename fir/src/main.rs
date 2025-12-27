@@ -1,5 +1,4 @@
 use anyhow::Error;
-use aya::programs::perf_attach::PerfLinkId;
 use aya::programs::perf_event::PerfEventLinkId;
 use aya::programs::{PerfEvent, PerfEventScope, PerfTypeId, SamplePolicy};
 use aya::maps::{HashMap, MapData, RingBuf};
@@ -13,7 +12,7 @@ use std::sync::mpsc;
 use std::ffi::CStr;
 
 #[derive(Debug, Parser)]
-#[command(name = "fir", version = "0.1.0", about = "an efficient system profiler using ebpf", long_about = None, arg_required_else_help = true)]
+#[command(name = "fir", version = "0.1.0", about = "an efficient system profiler using ebpf", long_about = None, arg_required_else_help = false)]
 struct Opt {
     //this way of taking in cli args is lowkey sketchy but idk i might change it later
     // just have to remind the user to enter everything IN order
@@ -26,16 +25,23 @@ struct Opt {
     #[arg(short, long, value_name = "PATH")]
     logfile: Option<String>,
 
-    #[arg(short, long, required = true, value_name = "EVENTS", help = "list of perf events to profile")]
+    #[arg(short, long, value_name = "EVENTS", help = "list of perf events to profile", default_values_t = ["all".to_string()])]
     events: Vec<String>,
 
-    #[arg(short = 'x', long, value_parser = parse_filter, help = "define events to ignore from certain processes: pid:event1,event2,event3\nor just the pid to drop everything from that process")]
+    #[arg(short = 'x', long, value_parser = parse_filter, help = "define events to ignore from certain processes: pid:event1,event2,event3\nor just the pid to drop everything from that process", default_value = "noarg")]
     filter_exclude: Vec<(u32, [PerfEventType; PERF_EVENT_VARIANTS])>,
+
+    #[arg(long, alias = "list", help = "list perf events supported by flextrace", default_value_t = false)]
+    list_events: bool,
 }
 
 // im pretty sure clap automaticlly handles the vec<> part and we
 // only have to worry about handling one str at a time
 fn parse_filter(filter: &str) -> anyhow::Result<(u32, [PerfEventType; PERF_EVENT_VARIANTS])> {
+    if filter == "noarg" {
+        return Ok((0, [PerfEventType::None; PERF_EVENT_VARIANTS]));
+    }
+
     if let Some(colon_index) = filter.find(":") {
         let mut events = [PerfEventType::None; PERF_EVENT_VARIANTS];
         let mut events_index = 0;
@@ -62,7 +68,7 @@ fn parse_filter(filter: &str) -> anyhow::Result<(u32, [PerfEventType; PERF_EVENT
 
         let key = match filter[..colon_index].parse::<u32>() {
             Ok(thing) => thing,
-            Err(e) => return Err(anyhow::Error::msg("yo!!! mr white!! can't parse this u32 yo!!!")),
+            Err(_e) => return Err(anyhow::Error::msg("yo!!! mr white!! can't parse this u32 yo!!!")),
         };
 
         Ok((key, events))
@@ -102,6 +108,45 @@ async fn main() -> anyhow::Result<()> {
         warn!("failed to initialize eBPF logger: {e}");
     }
 
+    if opt.list_events {
+        for (name, prog) in ebpf.programs() {
+            if prog.prog_type() == aya::programs::ProgramType::PerfEvent {
+                println!("{name}");
+            }
+        }
+        return Ok(());
+    }
+
+    // maps
+
+    // if we have a filter_exclude
+    if !(opt.filter_exclude.get(0).unwrap() == &(0, [PerfEventType::None; PERF_EVENT_VARIANTS])) {
+        let mut filter_exclude_map: HashMap<_, u32, [u8; PERF_EVENT_VARIANTS]> = HashMap::try_from(ebpf.take_map("FILTER_PIDS").unwrap()).unwrap();
+
+        for (key, value) in opt.filter_exclude {
+            let mut value_parsed: [u8; PERF_EVENT_VARIANTS] = [0u8; PERF_EVENT_VARIANTS];
+
+            for i in 0..PERF_EVENT_VARIANTS {
+                value_parsed[i] = value[i].into();
+            }
+
+            filter_exclude_map.insert(key, value_parsed, 0)?;
+        }
+    }
+
+    let perf_event_buf = RingBuf::try_from(ebpf.take_map("PERF_EVENTS").unwrap()).unwrap();
+    let mut asyncfd_perf_buf = AsyncFd::new(perf_event_buf)?;
+    let (perf_tx, perf_rx) = mpsc::channel::<PerfSample>();
+
+    // poll and read the maps (non-blockingly :D)
+    tokio::spawn(async move {
+        loop {
+            for i in ringbuf_read(&mut asyncfd_perf_buf).await.unwrap() {
+                perf_tx.send(i).unwrap();
+            }
+        }
+    });
+
     // i cant believe this actually works
     // forgive me
     for event_arg in opt.events {
@@ -124,34 +169,6 @@ async fn main() -> anyhow::Result<()> {
         }
     }
 
-    // maps
-    // some of ts prob looks unnecessary rn, such as declaring stuff outside the
-    // thread just to clone it and use it only in that thread (for now) but i promise theres a method here
-    let perf_event_buf = RingBuf::try_from(ebpf.take_map("PERF_EVENTS").unwrap()).unwrap();
-    let mut asyncfd_perf_buf = AsyncFd::new(perf_event_buf)?;
-    let (perf_tx, perf_rx) = mpsc::channel::<PerfSample>();
-
-    let mut filter_exclude_map: HashMap<_, u32, [u8; PERF_EVENT_VARIANTS]> = HashMap::try_from(ebpf.take_map("FILTER_PIDS").unwrap()).unwrap();
-
-    for (key, value) in opt.filter_exclude {
-        let mut value_parsed: [u8; PERF_EVENT_VARIANTS] = [0u8; PERF_EVENT_VARIANTS];
-
-        for i in 0..2 {
-            value_parsed[i] = value[i].into();
-        }
-
-        filter_exclude_map.insert(key, value_parsed, 0)?;
-    }
-
-    // poll and read the maps (non-blockingly :D)
-    tokio::spawn(async move {
-        loop {
-            for i in ringbuf_read(&mut asyncfd_perf_buf).await.unwrap() {
-                perf_tx.send(i).unwrap();
-            }
-        }
-    });
-
     loop {
         let recv = &perf_rx.recv()?;
 
@@ -161,8 +178,9 @@ async fn main() -> anyhow::Result<()> {
             .into_owned();
 
         let event_type = &recv.event_type.ebpf_from_self().unwrap();
+        let pid = &recv.pid;
         
-        println!("{command_str}\n{event_type}\n");
+        println!("{command_str}\n{pid}\n{event_type}\n");
     }
 
 }
@@ -220,7 +238,7 @@ fn load_attach_event(perf_event: &mut PerfEvent, perf_event_enum: PerfEventType)
                 true,
             ) {
                 Ok(link_id) => links.push(link_id),
-                Err(e) => {
+                Err(_e) => {
                     println!("system does not support perf event {}", perf_event_enum.ebpf_from_self().unwrap_or(String::from("could not get the string version of this event i guess, weird...")));
                     break;
                 },

@@ -1,5 +1,7 @@
 #![no_std]
 #![no_main]
+use core::panic;
+
 use aya_ebpf::{EbpfContext, bpf_printk};
 use aya_ebpf::macros::{map, perf_event};
 use aya_ebpf::programs::{PerfEventContext};
@@ -21,12 +23,10 @@ fn handle_perf_event(ctx: PerfEventContext, e_type: u8) -> u32 {
             if i == &e_type || i == &PerfEventType::Any.into() {
                 return 0;
             }
-        }
-    }
-    if let Some(filter) = unsafe { FILTER_PIDS.get(&0) } {
-        for i in filter {
-            if i == &e_type || i == &PerfEventType::Any.into() {
-                return 0;
+            // it would appear that we can guarantee order correctness such that once we stumble
+            // across a single None it means there's only None's left
+            if i == &PerfEventType::None.into() {
+                break;
             }
         }
     }
