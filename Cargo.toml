@@ -1,11 +1,11 @@
 [workspace]
 resolver = "2"
 members = [
-    "fir",
-    "fir-common",
-    "fir-ebpf",
+    "flextrace",
+    "flextrace-common",
+    "flextrace-ebpf",
 ]
-default-members = ["fir", "fir-common"]
+default-members = ["flextrace", "flextrace-common"]
 
 [workspace.package]
 license = "GPLv2"
@@ -29,6 +29,6 @@ log = { version = "0.4.22", default-features = false }
 tokio = { version = "1.40.0", default-features = false }
 which = { version = "6.0.0", default-features = false }
 
-[profile.release.package.fir-ebpf]
+[profile.release.package.flextrace-ebpf]
 debug = 2
 codegen-units = 1

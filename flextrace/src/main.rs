@@ -4,7 +4,7 @@ use aya::programs::{PerfEvent, PerfEventScope, PerfTypeId, SamplePolicy};
 use aya::maps::{HashMap, MapData, RingBuf};
 use aya::util::online_cpus;
 use clap::{Parser};
-use fir_common::{PERF_EVENT_VARIANTS, PerfEventType, PerfSample};
+use flextrace_common::{PERF_EVENT_VARIANTS, PerfEventType, PerfSample};
 //#[rustfmt::skip]
 use log::{debug, warn};
 use tokio::io::unix::AsyncFd;
@@ -12,7 +12,7 @@ use std::sync::mpsc;
 use std::ffi::CStr;
 
 #[derive(Debug, Parser)]
-#[command(name = "fir", version = "0.1.0", about = "an efficient system profiler using ebpf", long_about = None, arg_required_else_help = false)]
+#[command(name = "flextrace", version = "0.1.0", about = "an efficient system profiler using ebpf", long_about = None, arg_required_else_help = false)]
 struct Opt {
     //this way of taking in cli args is lowkey sketchy but idk i might change it later
     // just have to remind the user to enter everything IN order
@@ -100,7 +100,7 @@ async fn main() -> anyhow::Result<()> {
     // include ebpf program at compile time, load at runtime
     let mut ebpf: aya::Ebpf = aya::Ebpf::load(aya::include_bytes_aligned!(concat!(
         env!("OUT_DIR"),
-        "/fir"
+        "/flextrace"
     )))?;
 
     if let Err(e) = aya_log::EbpfLogger::init(&mut ebpf) {
