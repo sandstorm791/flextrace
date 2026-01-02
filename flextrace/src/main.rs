@@ -121,7 +121,7 @@ async fn main() -> anyhow::Result<()> {
 
     // if we have a filter_exclude
     if !(opt.filter_exclude.get(0).unwrap() == &(0, [PerfEventType::None; PERF_EVENT_VARIANTS])) {
-        let mut filter_exclude_map: HashMap<_, u32, [u8; PERF_EVENT_VARIANTS]> = HashMap::try_from(ebpf.take_map("FILTER_PIDS").unwrap()).unwrap();
+        let mut filter_exclude_map: HashMap<_, u32, [u8; PERF_EVENT_VARIANTS]> = HashMap::try_from(ebpf.map_mut("FILTER_PIDS").unwrap()).unwrap();
 
         for (key, value) in opt.filter_exclude {
             let mut value_parsed: [u8; PERF_EVENT_VARIANTS] = [0u8; PERF_EVENT_VARIANTS];
@@ -136,6 +136,7 @@ async fn main() -> anyhow::Result<()> {
 
     let perf_event_buf = RingBuf::try_from(ebpf.take_map("PERF_EVENTS").unwrap()).unwrap();
     let mut asyncfd_perf_buf = AsyncFd::new(perf_event_buf)?;
+
     let (perf_tx, perf_rx) = mpsc::channel::<PerfSample>();
 
     // poll and read the maps (non-blockingly :D)
@@ -147,8 +148,7 @@ async fn main() -> anyhow::Result<()> {
         }
     });
 
-    // i cant believe this actually works
-    // forgive me
+    // load and attatch programs
     for event_arg in opt.events {
         if let Some(event) = PerfEventType::ebpf_from_str(&event_arg) {
             let perf_event: &mut PerfEvent = ebpf.program_mut(&event).unwrap().try_into()?;
@@ -159,8 +159,10 @@ async fn main() -> anyhow::Result<()> {
         else if PerfEventType::from_str(&event_arg)? == PerfEventType::Any {
             println!("using all perf events\n");
 
-            for (name, program) in ebpf.programs_mut() {
-                let perf_event: &mut PerfEvent = program.try_into()?;
+            let program_names: Vec<String> = ebpf.programs().map(|(name, _)| name.to_string()).collect();
+
+            for name in program_names {
+                let perf_event: &mut PerfEvent = ebpf.program_mut(&name).unwrap().try_into()?;
                 let perf_event_enum = PerfEventType::from_str(&name[6..].to_string())?;
                 
                 load_attach_event(perf_event, perf_event_enum)?;

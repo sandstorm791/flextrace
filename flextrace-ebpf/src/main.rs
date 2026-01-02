@@ -11,9 +11,9 @@ use flextrace_common::{PerfSample, PerfEventType, PERF_EVENT_VARIANTS};
 #[map]
 pub static PERF_EVENTS: RingBuf = RingBuf::with_byte_size(1000 * 3000, 0); // ~3MB, exact amount handled by aya
 
-#[map]
 //10k (~640kb) processes should be enough for anyone but we can always update it
 //could use BPF_F_NO_PREALLOC but that has more runtime overhead
+#[map]
 pub static FILTER_PIDS: HashMap<u32, [u8; PERF_EVENT_VARIANTS]> = HashMap::with_max_entries(10000, 0);
 
 fn handle_perf_event(ctx: PerfEventContext, e_type: u8) -> u32 {
