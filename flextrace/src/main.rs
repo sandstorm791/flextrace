@@ -4,7 +4,7 @@ use aya::programs::{PerfEvent, PerfEventScope, PerfTypeId, SamplePolicy};
 use aya::maps::{HashMap, MapData, RingBuf};
 use aya::util::online_cpus;
 use clap::{Parser};
-use flextrace_common::{PERF_EVENT_VARIANTS, PerfEventType, PerfSample};
+use flextrace_common::{FlextraceError, PERF_EVENT_VARIANTS, PerfEventType, PerfSample};
 //#[rustfmt::skip]
 use log::{debug, warn};
 use tokio::io::unix::AsyncFd;
@@ -31,7 +31,7 @@ struct Opt {
     #[arg(short = 'x', long, value_parser = parse_filter, help = "define events to ignore from certain processes: pid:event1,event2,event3\nor just the pid to drop everything from that process", default_value = "noarg")]
     filter_exclude: Vec<(u32, [PerfEventType; PERF_EVENT_VARIANTS])>,
 
-    #[arg(long, alias = "list", help = "list perf events supported by flextrace", default_value_t = false)]
+    #[arg(long = "list", help = "list perf events supported by flextrace", default_value_t = false)]
     list_events: bool,
 }
 
@@ -211,10 +211,10 @@ async fn ringbuf_read<T: Copy>(fd: &mut AsyncFd<RingBuf<MapData>>) -> Result<Vec
         Ok(count)
     }).unwrap().unwrap();
 
-        println!("ringbuf processed {} items", count_processed);
+    println!("ringbuf processed {} items", count_processed);
 
-        readguard.clear_ready();
-        Ok(items)
+    readguard.clear_ready();
+    Ok(items)
 }
 
 fn load_attach_event(perf_event: &mut PerfEvent, perf_event_enum: PerfEventType) -> anyhow::Result<Vec<PerfEventLinkId>> {
@@ -224,7 +224,7 @@ fn load_attach_event(perf_event: &mut PerfEvent, perf_event_enum: PerfEventType)
     match perf_event_category {
         PerfTypeId::Hardware => perf_id = perf_event_enum.perf_hw_id()? as u64,
         PerfTypeId::Software => perf_id = perf_event_enum.perf_sw_id()? as u64,
-        _ => panic!("please fix this!!! add a handler for perf event types other\nthan hardware and software!!!!!\n\nif you're seeing this in prod i give you full permission to slap me in the face next time you see me"),
+        _ => return Err(anyhow::Error::msg("if youre seeing this i screwed up")),
     }
 
     perf_event.load()?;
