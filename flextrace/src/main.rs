@@ -37,6 +37,7 @@ struct Opt {
     list_events: bool,
 }
 
+#[derive(Debug)]
 struct ProfileData {
     name: String,
     gid: u32,
@@ -185,21 +186,18 @@ async fn main() -> anyhow::Result<()> {
     loop {
         if let Some(recv) = &perf_rx.recv().await {
             let event_type = recv.event_type;
-            let pid = recv.pid;
-            let recv_gid = recv.gid;
             
-            let profile_data = map_processes_profiled.entry(pid).or_insert_with(||
+            let profile_data = map_processes_profiled.entry(recv.pid).or_insert_with(|| {
+                println!("pid: {}", recv.pid);
                 ProfileData {
                     events: StdHashMap::new(),
                     name: String::from(""),
                     gid: 0,
                 }
-            );
+            });
 
             // increment the counter for that event
             *profile_data.events.entry(event_type).or_insert(0) += 1;
-
-            profile_data.gid = recv_gid;
         }
     }
 }
