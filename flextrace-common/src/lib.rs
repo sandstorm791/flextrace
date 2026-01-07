@@ -52,7 +52,7 @@ pub struct PerfSample {
 
 // since we want to have one map for all types of perf events we'll use this internally
 // instead of the aya generated perf ids that are category dependent
-#[derive(TryFromPrimitive, IntoPrimitive, Default, Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Hash, TryFromPrimitive, IntoPrimitive, Default, Copy, Clone, Debug, PartialEq, Eq)]
 #[repr(u8)]
 pub enum PerfEventType {
     #[default]
