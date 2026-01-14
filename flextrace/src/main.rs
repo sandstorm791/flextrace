@@ -1,15 +1,17 @@
 use anyhow::Error;
 use aya::programs::perf_event::PerfEventLinkId;
 use aya::programs::{PerfEvent, PerfEventScope, PerfTypeId, SamplePolicy};
-use aya::maps::{HashMap, MapData, RingBuf};
+use aya::maps::{HashMap as AyaHashMap, MapData, RingBuf};
+
 use aya::util::online_cpus;
 use clap::{Parser};
 use flextrace_common::{FlextraceError, PERF_EVENT_VARIANTS, PerfEventType, PerfSample};
-//#[rustfmt::skip]
 use log::{debug, warn};
 use tokio::io::unix::AsyncFd;
-use std::sync::mpsc;
-use std::ffi::CStr;
+use tokio::sync::mpsc;
+use tokio::task::JoinHandle;
+
+use std::collections::HashMap as StdHashMap;
 
 #[derive(Debug, Parser)]
 #[command(name = "flextrace", version = "0.1.0", about = "an efficient system profiler using ebpf", long_about = None, arg_required_else_help = false)]
@@ -33,6 +35,13 @@ struct Opt {
 
     #[arg(long = "list", help = "list perf events supported by flextrace", default_value_t = false)]
     list_events: bool,
+}
+
+#[derive(Debug)]
+struct ProfileData {
+    name: String,
+    gid: u32,
+    events: StdHashMap<PerfEventType, u32>,
 }
 
 // im pretty sure clap automaticlly handles the vec<> part and we
@@ -121,7 +130,7 @@ async fn main() -> anyhow::Result<()> {
 
     // if we have a filter_exclude
     if !(opt.filter_exclude.get(0).unwrap() == &(0, [PerfEventType::None; PERF_EVENT_VARIANTS])) {
-        let mut filter_exclude_map: HashMap<_, u32, [u8; PERF_EVENT_VARIANTS]> = HashMap::try_from(ebpf.map_mut("FILTER_PIDS").unwrap()).unwrap();
+        let mut filter_exclude_map: AyaHashMap<_, u32, [u8; PERF_EVENT_VARIANTS]> = AyaHashMap::try_from(ebpf.map_mut("FILTER_PIDS").unwrap()).unwrap();
 
         for (key, value) in opt.filter_exclude {
             let mut value_parsed: [u8; PERF_EVENT_VARIANTS] = [0u8; PERF_EVENT_VARIANTS];
@@ -137,13 +146,16 @@ async fn main() -> anyhow::Result<()> {
     let perf_event_buf = RingBuf::try_from(ebpf.take_map("PERF_EVENTS").unwrap()).unwrap();
     let mut asyncfd_perf_buf = AsyncFd::new(perf_event_buf)?;
 
-    let (perf_tx, perf_rx) = mpsc::channel::<PerfSample>();
+    let (perf_tx, mut perf_rx) = mpsc::channel::<PerfSample>(100);
+
+    // initialize map for storing stats
+    let mut map_processes_profiled: StdHashMap<u32, ProfileData> = StdHashMap::new();
 
     // poll and read the maps (non-blockingly :D)
-    tokio::spawn(async move {
+    let map_polling_task: JoinHandle<anyhow::Result<()>> = tokio::spawn(async move {
         loop {
             for i in ringbuf_read(&mut asyncfd_perf_buf).await.unwrap() {
-                perf_tx.send(i).unwrap();
+                perf_tx.send(i).await.map_err(|_| anyhow::anyhow!("reciever closed?"))?;
             }
         }
     });
@@ -172,19 +184,22 @@ async fn main() -> anyhow::Result<()> {
     }
 
     loop {
-        let recv = &perf_rx.recv()?;
+        if let Some(recv) = &perf_rx.recv().await {
+            let event_type = recv.event_type;
+            
+            let profile_data = map_processes_profiled.entry(recv.pid).or_insert_with(|| {
+                println!("pid: {}", recv.pid);
+                ProfileData {
+                    events: StdHashMap::new(),
+                    name: String::from(""),
+                    gid: 0,
+                }
+            });
 
-        let command_str = CStr::from_bytes_until_nul(&recv.cmd)
-            .expect("CStr::from_bytes_until_nul failed")
-            .to_string_lossy()
-            .into_owned();
-
-        let event_type = &recv.event_type.ebpf_from_self().unwrap();
-        let pid = &recv.pid;
-        
-        println!("{command_str}\n{pid}\n{event_type}\n");
+            // increment the counter for that event
+            *profile_data.events.entry(event_type).or_insert(0) += 1;
+        }
     }
-
 }
 
 async fn ringbuf_read<T: Copy>(fd: &mut AsyncFd<RingBuf<MapData>>) -> Result<Vec<T>, Error> {
@@ -211,7 +226,7 @@ async fn ringbuf_read<T: Copy>(fd: &mut AsyncFd<RingBuf<MapData>>) -> Result<Vec
         Ok(count)
     }).unwrap().unwrap();
 
-    println!("ringbuf processed {} items", count_processed);
+    //println!("ringbuf processed {} items", count_processed);
 
     readguard.clear_ready();
     Ok(items)
