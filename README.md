@@ -2,7 +2,7 @@
 flextrace is an ebpf-powered application profiling toolkit for linux
 (minimum kernel version 5.17)
 
-currently only supports x64 system v abi but hopefully others soon
+currently only supports amd64 system v abi but hopefully others soon
 
 nothing is production yet lol but hopefully it will be some time
 
