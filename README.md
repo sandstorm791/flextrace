@@ -1,4 +1,12 @@
 # flextrace
+flextrace is an ebpf-powered application profiling toolkit for linux
+(minimum kernel version 5.19)
+
+currently only supports amd64 system v abi but hopefully others soon
+
+nothing is production yet lol but hopefully it will be some time
+
+i might split this into libflextrace and some frontends some time, tell me if you think thats a good idea or not
 
 ## Prerequisites
 
@@ -25,9 +33,9 @@ program.
 Cross compilation should work on both Intel and Apple Silicon Macs.
 
 ```shell
-CC=${ARCH}-linux-musl-gcc cargo build --package fir --release \
+CC=${ARCH}-linux-musl-gcc cargo build --package flextrace --release \
   --target=${ARCH}-unknown-linux-musl \
   --config=target.${ARCH}-unknown-linux-musl.linker=\"${ARCH}-linux-musl-gcc\"
 ```
-The cross-compiled program `target/${ARCH}-unknown-linux-musl/release/fir` can be
+The cross-compiled program `target/${ARCH}-unknown-linux-musl/release/flextrace` can be
 copied to a Linux server or VM and run there.
