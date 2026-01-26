@@ -1,7 +1,8 @@
 use anyhow::Error;
 use aya::programs::perf_event::PerfEventLinkId;
 use aya::programs::{PerfEvent, PerfEventScope, PerfTypeId, SamplePolicy};
-use aya::maps::{HashMap, MapData, RingBuf};
+use aya::maps::{HashMap as AyaHashMap, MapData, RingBuf};
+
 use aya::util::online_cpus;
 use clap::Parser;
 use flextrace_common::{PERF_EVENT_VARIANTS, PerfEventType, PerfSample};
@@ -34,8 +35,15 @@ struct Opt {
     #[arg(short = 'x', long, value_parser = parse_filter, help = "define events to ignore from certain processes: pid:event1,event2,event3\nor just the pid to drop everything from that process", default_value = "noarg")]
     filter_exclude: Vec<(u32, u32)>,
 
-    #[arg(long, alias = "list", help = "list perf events supported by flextrace", default_value_t = false)]
+    #[arg(long = "list", help = "list perf events supported by flextrace", default_value_t = false)]
     list_events: bool,
+}
+
+#[derive(Debug)]
+struct ProfileData {
+    name: String,
+    gid: u32,
+    events: StdHashMap<PerfEventType, u32>,
 }
 
 // im pretty sure clap automaticlly handles the vec<> part and we
@@ -133,8 +141,10 @@ async fn main() -> anyhow::Result<()> {
         else if PerfEventType::from_str(&event_arg)? == PerfEventType::Any {
             println!("using all perf events\n");
 
-            for (name, program) in ebpf.programs_mut() {
-                let perf_event: &mut PerfEvent = program.try_into()?;
+            let program_names: Vec<String> = ebpf.programs().map(|(name, _)| name.to_string()).collect();
+
+            for name in program_names {
+                let perf_event: &mut PerfEvent = ebpf.program_mut(&name).unwrap().try_into()?;
                 let perf_event_enum = PerfEventType::from_str(&name[6..].to_string())?;
                 
                 load_attach_event(perf_event, perf_event_enum)?;
@@ -188,7 +198,6 @@ async fn main() -> anyhow::Result<()> {
             profile_data.gid = recv_gid;
         }
     }
-
 }
 
 async fn ringbuf_read<T: Copy>(fd: &mut AsyncFd<RingBuf<MapData>>) -> Result<Vec<T>, Error> {
@@ -218,8 +227,8 @@ async fn ringbuf_read<T: Copy>(fd: &mut AsyncFd<RingBuf<MapData>>) -> Result<Vec
 
         //println!("ringbuf processed {} items", count_processed);
 
-        readguard.clear_ready();
-        Ok(items)
+    readguard.clear_ready();
+    Ok(items)
 }
 
 fn load_attach_event(perf_event: &mut PerfEvent, perf_event_enum: PerfEventType) -> anyhow::Result<Vec<PerfEventLinkId>> {
@@ -229,7 +238,7 @@ fn load_attach_event(perf_event: &mut PerfEvent, perf_event_enum: PerfEventType)
     match perf_event_category {
         PerfTypeId::Hardware => perf_id = perf_event_enum.perf_hw_id()? as u64,
         PerfTypeId::Software => perf_id = perf_event_enum.perf_sw_id()? as u64,
-        _ => panic!("please fix this!!! add a handler for perf event types other\nthan hardware and software!!!!!\n\nif you're seeing this in prod i give you full permission to slap me in the face next time you see me"),
+        _ => return Err(anyhow::Error::msg("if youre seeing this i screwed up")),
     }
 
     perf_event.load()?;
