@@ -8,8 +8,11 @@ use flextrace_common::{PERF_EVENT_VARIANTS, PerfEventType, PerfSample};
 //#[rustfmt::skip]
 use log::{debug, warn};
 use tokio::io::unix::AsyncFd;
-use std::sync::mpsc;
+use tokio::sync::mpsc;
+use tokio::task::JoinHandle;
 use std::ffi::CStr;
+
+use flextrace::*;
 
 #[derive(Debug, Parser)]
 #[command(name = "flextrace", version = "0.1.0", about = "an efficient system profiler using ebpf", long_about = None, arg_required_else_help = false)]
@@ -148,35 +151,42 @@ async fn main() -> anyhow::Result<()> {
 
         for (key, mask) in opt.filter_exclude {
             filter_exclude_map.insert(key, mask, 0)?;
-            println!("{key}, {mask}");
         }
     }
 
     let perf_event_buf = RingBuf::try_from(ebpf.take_map("PERF_EVENTS").unwrap()).unwrap();
     let mut asyncfd_perf_buf = AsyncFd::new(perf_event_buf)?;
-    let (perf_tx, perf_rx) = mpsc::channel::<PerfSample>();
+    let (perf_tx, mut perf_rx) = mpsc::channel::<PerfSample>(100);
+
+    let mut profile_data: StdHashMap<u32, ProfileData> = StdHashMap::new(); 
 
     // poll and read the maps (non-blockingly :D)
-    tokio::spawn(async move {
+    let map_polling_task: JoinHandle<anyhow::Result<()>> = tokio::spawn(async move {
         loop {
             for i in ringbuf_read(&mut asyncfd_perf_buf).await.unwrap() {
-                perf_tx.send(i).unwrap();
+                perf_tx.send(i).await.map_err(|_| anyhow::anyhow!("reciever closed?"))?;
             }
         }
     });
 
     loop {
-        let recv = &perf_rx.recv()?;
+        if let Some(recv) = &perf_rx.recv().await {
+            let event_type = recv.event_type;
+            let pid = recv.pid;
+            let recv_gid = recv.gid;
 
-        let command_str = CStr::from_bytes_until_nul(&recv.cmd)
-            .expect("CStr::from_bytes_until_nul failed")
-            .to_string_lossy()
-            .into_owned();
-
-        let event_type = &recv.event_type.ebpf_from_self().unwrap();
-        let pid = &recv.pid;
-        
-        println!("{command_str}\n{pid}\n{event_type}\n");
+            let profile_data = profile_data.entry(pid).or_insert_with(||
+                ProfileData {
+                    events: StdHashMap::new(),
+                    name: String::from(""),
+                    gid: 0,
+                }
+            );
+            
+            // increment the counter for that event
+            *profile_data.events.entry(event_type).or_insert(0) += 1;
+            profile_data.gid = recv_gid;
+        }
     }
 
 }
@@ -185,7 +195,7 @@ async fn ringbuf_read<T: Copy>(fd: &mut AsyncFd<RingBuf<MapData>>) -> Result<Vec
     let mut readguard = fd.readable_mut().await.unwrap();
     let mut items: Vec<T> = Vec::new();
 
-    let count_processed = readguard.try_io(|inner|{
+    readguard.try_io(|inner|{
         let mut count: usize = 0;
 
         while let Some(event) = inner.get_mut().next() {
@@ -206,7 +216,7 @@ async fn ringbuf_read<T: Copy>(fd: &mut AsyncFd<RingBuf<MapData>>) -> Result<Vec
         Ok(count)
     }).unwrap().unwrap();
 
-        println!("ringbuf processed {} items", count_processed);
+        //println!("ringbuf processed {} items", count_processed);
 
         readguard.clear_ready();
         Ok(items)
