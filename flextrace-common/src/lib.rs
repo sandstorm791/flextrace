@@ -1,6 +1,6 @@
 #![cfg_attr(not(feature = "user"), no_std)]
 #[cfg(feature = "user")]
-use std::{fmt::{self, Display}};
+use std::fmt::{self, Display};
 
 #[cfg(feature = "user")]
 use aya_obj::generated::{perf_hw_id, perf_sw_ids};
@@ -56,33 +56,40 @@ pub struct PerfSample {
 #[repr(u8)]
 pub enum PerfEventType {
     #[default]
-    None,
+    None = 22,
     
-    Any,
+    Any = 21,
 
     //hardware
-    CacheMiss,
-    CpuCycles,
-    Instructions,
-    CacheReferences,
-    BranchInstructions,
-    BranchMisses,
-    BusCycles,
-    StalledCyclesFront,
-    StalledCyclesBack,
-    RefCpuCycles,
+    CacheMiss = 1,
+    CpuCycles = 2,
+    Instructions = 3,
+    CacheReferences = 4,
+    BranchInstructions = 5,
+    BranchMisses = 6,
+    BusCycles = 7,
+    StalledCyclesFront = 8,
+    StalledCyclesBack = 9,
+    RefCpuCycles = 10,
 
     //software
-    CpuClock,
-    TaskClock,
-    PageFaults,
-    ContextSwitches,
-    CpuMigrations,
-    PageFaultsMin,
-    PageFaultsMaj,
-    AlignmentFaults,
-    EmulationFaults,
-    CgroupSwitches
+    CpuClock = 11,
+    TaskClock = 12,
+    PageFaults = 13,
+    ContextSwitches = 14,
+    CpuMigrations = 15,
+    PageFaultsMin = 16,
+    PageFaultsMaj = 17,
+    AlignmentFaults = 18,
+    EmulationFaults = 19,
+    CgroupSwitches = 20,
+}
+
+#[derive(Copy, Clone)]
+#[repr(C)]
+pub struct ProbeConfig {
+    pub num_args: u32,
+    pub ptr_depths: [u32; 32], // 32 arguments ought to be enough for anyone... right?
 }
 
 #[cfg(feature = "user")]

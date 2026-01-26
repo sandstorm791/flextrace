@@ -3,7 +3,7 @@ use aya::programs::perf_event::PerfEventLinkId;
 use aya::programs::{PerfEvent, PerfEventScope, PerfTypeId, SamplePolicy};
 use aya::maps::{HashMap, MapData, RingBuf};
 use aya::util::online_cpus;
-use clap::{Parser};
+use clap::Parser;
 use flextrace_common::{PERF_EVENT_VARIANTS, PerfEventType, PerfSample};
 //#[rustfmt::skip]
 use log::{debug, warn};
@@ -29,7 +29,7 @@ struct Opt {
     events: Vec<String>,
 
     #[arg(short = 'x', long, value_parser = parse_filter, help = "define events to ignore from certain processes: pid:event1,event2,event3\nor just the pid to drop everything from that process", default_value = "noarg")]
-    filter_exclude: Vec<(u32, [PerfEventType; PERF_EVENT_VARIANTS])>,
+    filter_exclude: Vec<(u32, u32)>,
 
     #[arg(long, alias = "list", help = "list perf events supported by flextrace", default_value_t = false)]
     list_events: bool,
@@ -37,13 +37,13 @@ struct Opt {
 
 // im pretty sure clap automaticlly handles the vec<> part and we
 // only have to worry about handling one str at a time
-fn parse_filter(filter: &str) -> anyhow::Result<(u32, [PerfEventType; PERF_EVENT_VARIANTS])> {
+fn parse_filter(filter: &str) -> anyhow::Result<(u32, u32)> {
     if filter == "noarg" {
-        return Ok((0, [PerfEventType::None; PERF_EVENT_VARIANTS]));
+        return Ok((0, 0u32));
     }
 
     if let Some(colon_index) = filter.find(":") {
-        let mut events = [PerfEventType::None; PERF_EVENT_VARIANTS];
+        let mut events_mask: u32 = 0;
         let mut events_index = 0;
 
         let mut to_process = &filter[colon_index + 1..];
@@ -51,9 +51,9 @@ fn parse_filter(filter: &str) -> anyhow::Result<(u32, [PerfEventType; PERF_EVENT
         while let Some(comma_index) = to_process.find(",") {
             if events_index >= PERF_EVENT_VARIANTS { return Err(anyhow::Error::msg("too many perf events specified yo")); }
             
-            events[events_index] = PerfEventType::from_str(&to_process[..comma_index].to_string()).unwrap();
+            events_mask |= 1 << PerfEventType::from_str(&to_process[..comma_index].to_string()).unwrap() as u8;
 
-            if comma_index != events.len() {
+            if comma_index != to_process.len() {
                 to_process = &to_process[comma_index + 1..];
             }
             else { to_process = ""; }
@@ -64,16 +64,16 @@ fn parse_filter(filter: &str) -> anyhow::Result<(u32, [PerfEventType; PERF_EVENT
         if to_process != "" && events_index >= PERF_EVENT_VARIANTS {
             return Err(anyhow::Error::msg("too many perf events mr white!!!"));
         }
-        events[events_index] = PerfEventType::from_str(&to_process.to_string()).unwrap();
+        events_mask |= 1 << PerfEventType::from_str(&to_process.to_string()).unwrap() as u8;
 
         let key = match filter[..colon_index].parse::<u32>() {
             Ok(thing) => thing,
             Err(_e) => return Err(anyhow::Error::msg("yo!!! mr white!! can't parse this u32 yo!!!")),
         };
 
-        Ok((key, events))
+        Ok((key, events_mask))
     }
-    else { Ok((filter.parse()?, [PerfEventType::Any; PERF_EVENT_VARIANTS])) }
+    else { Ok((filter.parse()?, u32::MAX as u32)) }
 }
 
 
@@ -117,38 +117,9 @@ async fn main() -> anyhow::Result<()> {
         return Ok(());
     }
 
-    // maps
-
-    // if we have a filter_exclude
-    if !(opt.filter_exclude.get(0).unwrap() == &(0, [PerfEventType::None; PERF_EVENT_VARIANTS])) {
-        let mut filter_exclude_map: HashMap<_, u32, [u8; PERF_EVENT_VARIANTS]> = HashMap::try_from(ebpf.take_map("FILTER_PIDS").unwrap()).unwrap();
-
-        for (key, value) in opt.filter_exclude {
-            let mut value_parsed: [u8; PERF_EVENT_VARIANTS] = [0u8; PERF_EVENT_VARIANTS];
-
-            for i in 0..PERF_EVENT_VARIANTS {
-                value_parsed[i] = value[i].into();
-            }
-
-            filter_exclude_map.insert(key, value_parsed, 0)?;
-        }
-    }
-
-    let perf_event_buf = RingBuf::try_from(ebpf.take_map("PERF_EVENTS").unwrap()).unwrap();
-    let mut asyncfd_perf_buf = AsyncFd::new(perf_event_buf)?;
-    let (perf_tx, perf_rx) = mpsc::channel::<PerfSample>();
-
-    // poll and read the maps (non-blockingly :D)
-    tokio::spawn(async move {
-        loop {
-            for i in ringbuf_read(&mut asyncfd_perf_buf).await.unwrap() {
-                perf_tx.send(i).unwrap();
-            }
-        }
-    });
-
-    // i cant believe this actually works
-    // forgive me
+    // load and attatch perf events
+    // must happen before map stuff so that the fds for the maps remain tracked
+    // unfortunately atm this can cause some data to be sent through the ringbuf prior to the filter_exclude taking effect
     for event_arg in opt.events {
         if let Some(event) = PerfEventType::ebpf_from_str(&event_arg) {
             let perf_event: &mut PerfEvent = ebpf.program_mut(&event).unwrap().try_into()?;
@@ -168,6 +139,31 @@ async fn main() -> anyhow::Result<()> {
             break;
         }
     }
+
+    // maps
+
+    // if we have a filter_exclude
+    if !(opt.filter_exclude.get(0).unwrap() == &(0, 0)) {
+        let mut filter_exclude_map: HashMap<_, u32, u32> = HashMap::try_from(ebpf.take_map("FILTER_PIDS").unwrap()).unwrap();
+
+        for (key, mask) in opt.filter_exclude {
+            filter_exclude_map.insert(key, mask, 0)?;
+            println!("{key}, {mask}");
+        }
+    }
+
+    let perf_event_buf = RingBuf::try_from(ebpf.take_map("PERF_EVENTS").unwrap()).unwrap();
+    let mut asyncfd_perf_buf = AsyncFd::new(perf_event_buf)?;
+    let (perf_tx, perf_rx) = mpsc::channel::<PerfSample>();
+
+    // poll and read the maps (non-blockingly :D)
+    tokio::spawn(async move {
+        loop {
+            for i in ringbuf_read(&mut asyncfd_perf_buf).await.unwrap() {
+                perf_tx.send(i).unwrap();
+            }
+        }
+    });
 
     loop {
         let recv = &perf_rx.recv()?;
@@ -204,6 +200,7 @@ async fn ringbuf_read<T: Copy>(fd: &mut AsyncFd<RingBuf<MapData>>) -> Result<Vec
 
             items.push(event_struct);
             count += 1;
+
         }
 
         Ok(count)

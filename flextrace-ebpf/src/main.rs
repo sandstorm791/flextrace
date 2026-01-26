@@ -4,30 +4,24 @@ use core::panic;
 
 use aya_ebpf::{EbpfContext, bpf_printk};
 use aya_ebpf::macros::{map, perf_event};
-use aya_ebpf::programs::{PerfEventContext};
+use aya_ebpf::programs::PerfEventContext;
 use aya_ebpf::maps::{HashMap, RingBuf};
-use flextrace_common::{PerfSample, PerfEventType, PERF_EVENT_VARIANTS};
+use flextrace_common::{PerfSample, PerfEventType};
+
+mod probes;
 
 #[map]
 pub static PERF_EVENTS: RingBuf = RingBuf::with_byte_size(1000 * 3000, 0); // ~3MB, exact amount handled by aya
 
 #[map]
-//10k (~640kb) processes should be enough for anyone but we can always update it
-//could use BPF_F_NO_PREALLOC but that has more runtime overhead
-pub static FILTER_PIDS: HashMap<u32, [u8; PERF_EVENT_VARIANTS]> = HashMap::with_max_entries(10000, 0);
+//10k processes ought to be enough for anybody
+pub static FILTER_PIDS: HashMap<u32, u32> = HashMap::with_max_entries(10000, 0);
 
 fn handle_perf_event(ctx: PerfEventContext, e_type: u8) -> u32 {
     // filter out if the event is on a pid that filters that event
     if let Some(filter) = unsafe { FILTER_PIDS.get(&ctx.pid()) } {
-        for i in filter {
-            if i == &e_type || i == &PerfEventType::Any.into() {
-                return 0;
-            }
-            // it would appear that we can guarantee order correctness such that once we stumble
-            // across a single None it means there's only None's left
-            if i == &PerfEventType::None.into() {
-                break;
-            }
+        if filter & (1 << e_type) != 0 {
+            return 0;
         }
     }
 
