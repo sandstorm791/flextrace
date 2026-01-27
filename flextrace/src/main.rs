@@ -12,6 +12,8 @@ use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 use std::ffi::CStr;
 
+mod probes;
+
 use flextrace::*;
 
 #[derive(Debug, Parser)]
@@ -88,18 +90,8 @@ async fn main() -> anyhow::Result<()> {
     let opt = Opt::parse();
 
     env_logger::init();
-
-    // Bump the memlock rlimit. This is needed for older kernels that don't use the
-    // new memcg based accounting, see https://lwn.net/Articles/837122/
-    let rlim = libc::rlimit {
-        rlim_cur: libc::RLIM_INFINITY,
-        rlim_max: libc::RLIM_INFINITY,
-    };
-    let ret = unsafe { libc::setrlimit(libc::RLIMIT_MEMLOCK, &rlim) };
-    if ret != 0 {
-        debug!("remove limit on locked memory failed, ret is: {ret}");
-    }
-
+    
+    // (no need to bump the memlock rlimit cause we don't even support kernels that old)
     // include ebpf program at compile time, load at runtime
     let mut ebpf: aya::Ebpf = aya::Ebpf::load(aya::include_bytes_aligned!(concat!(
         env!("OUT_DIR"),

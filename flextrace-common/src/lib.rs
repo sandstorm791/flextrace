@@ -13,19 +13,19 @@ pub const PERF_EVENT_VARIANTS: usize = 22;
 
 #[cfg(feature = "user")]
 #[derive(Debug)]
-pub enum FlextraceError<E = ()> {
+pub enum FlextraceError {
     TooManyEvents(String),
     BadArgument(String),
+    NoSuchProgram(String),
     NoSuchPerfEventType(String),
     NoPerfEventCategory(String),
     NoPerfHwId(String),
     NoPerfSwId(String),
     Msg(String),
-    Inner(E),
 }
 
 #[cfg(feature = "user")]
-impl<E> fmt::Display for FlextraceError<E> {
+impl fmt::Display for FlextraceError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Self::TooManyEvents(ctx) => write!(f, "too many events for one process, max is {PERF_EVENT_VARIANTS}, context: {ctx}"),
@@ -37,7 +37,7 @@ impl<E> fmt::Display for FlextraceError<E> {
 }
 
 #[cfg(feature = "user")]
-impl<E: std::fmt::Debug + Display> std::error::Error for FlextraceError<E> {}
+impl std::error::Error for FlextraceError {}
 
 #[derive(Default, Copy, Clone, Debug)]
 #[repr(C)]
@@ -85,16 +85,19 @@ pub enum PerfEventType {
     CgroupSwitches = 20,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Default, Copy, Clone, Debug)]
 #[repr(C)]
 pub struct ProbeConfig {
-    pub num_args: u32,
+    pub num_args: u8,
     pub ptr_depths: [u32; 32], // 32 arguments ought to be enough for anyone... right?
 }
 
 #[cfg(feature = "user")]
+unsafe impl aya::Pod for ProbeConfig {}
+
+#[cfg(feature = "user")]
 impl PerfEventType {
-    pub fn from_str(thing: &String) -> Result<PerfEventType, FlextraceError<String>> {
+    pub fn from_str(thing: &String) -> Result<PerfEventType, FlextraceError> {
         match thing.as_str() {
             //"none" => Ok(PerfEventType::None),
             "any" => Ok(PerfEventType::Any),
@@ -158,7 +161,7 @@ impl PerfEventType {
         return PerfEventType::ebpf_from_self(&PerfEventType::from_str(thing).ok()?);
     }
 
-    pub fn perf_event_category(&self) -> Result<PerfTypeId, FlextraceError<String>> {
+    pub fn perf_event_category(&self) -> Result<PerfTypeId, FlextraceError> {
         match self {
             Self::CacheMiss => Ok(PerfTypeId::Hardware),
             Self::CpuCycles => Ok(PerfTypeId::Hardware),
@@ -187,7 +190,7 @@ impl PerfEventType {
     }
 
     // this function will return an error if the perf event is not a hardware event
-    pub fn perf_hw_id(&self) -> Result<perf_hw_id, FlextraceError<String>> {
+    pub fn perf_hw_id(&self) -> Result<perf_hw_id, FlextraceError> {
         match self {
             Self::CacheMiss => Ok(perf_hw_id::PERF_COUNT_HW_CACHE_MISSES),
             Self::CpuCycles => Ok(perf_hw_id::PERF_COUNT_HW_CPU_CYCLES),
@@ -203,7 +206,7 @@ impl PerfEventType {
         }
     }
 
-    pub fn perf_sw_id(&self) -> Result<perf_sw_ids, FlextraceError<String>> {
+    pub fn perf_sw_id(&self) -> Result<perf_sw_ids, FlextraceError> {
         match self {
             Self::CpuClock => Ok(perf_sw_ids::PERF_COUNT_SW_CPU_CLOCK),
             Self::TaskClock => Ok(perf_sw_ids::PERF_COUNT_SW_TASK_CLOCK),
