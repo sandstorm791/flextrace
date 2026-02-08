@@ -605,6 +605,7 @@ dependencies = [
  "aya",
  "aya-build",
  "aya-log",
+ "cargo_metadata",
  "clap",
  "clap-help",
  "env_logger",

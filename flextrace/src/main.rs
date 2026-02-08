@@ -1,6 +1,6 @@
 use anyhow::Error;
 use aya::programs::perf_event::PerfEventLinkId;
-use aya::programs::{PerfEvent, PerfEventScope, PerfTypeId, SamplePolicy};
+use aya::programs::perf_event::{PerfEvent, PerfEventScope, SamplePolicy};
 use aya::maps::{HashMap, MapData, RingBuf};
 use aya::util::online_cpus;
 use clap::Parser;
@@ -12,7 +12,7 @@ use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 use std::ffi::CStr;
 
-mod probes;
+//mod probes;
 
 use flextrace::*;
 
@@ -36,7 +36,7 @@ struct Opt {
     #[arg(short = 'x', long, value_parser = parse_filter, help = "define events to ignore from certain processes: pid:event1,event2,event3\nor just the pid to drop everything from that process", default_value = "noarg")]
     filter_exclude: Vec<(u32, u32)>,
 
-    #[arg(long, alias = "list", help = "list perf events supported by flextrace", default_value_t = false)]
+    #[arg(long, alias = "list", help = "list perf events supported by flextrace (remove the event_ when using as an argument)", default_value_t = false)]
     list_events: bool,
 }
 
@@ -215,14 +215,7 @@ async fn ringbuf_read<T: Copy>(fd: &mut AsyncFd<RingBuf<MapData>>) -> Result<Vec
 }
 
 fn load_attach_event(perf_event: &mut PerfEvent, perf_event_enum: PerfEventType) -> anyhow::Result<Vec<PerfEventLinkId>> {
-    let perf_event_category = perf_event_enum.perf_event_category()?;
-    let perf_id: u64;
-
-    match perf_event_category {
-        PerfTypeId::Hardware => perf_id = perf_event_enum.perf_hw_id()? as u64,
-        PerfTypeId::Software => perf_id = perf_event_enum.perf_sw_id()? as u64,
-        _ => panic!("please fix this!!! add a handler for perf event types other\nthan hardware and software!!!!!\n\nif you're seeing this in prod i give you full permission to slap me in the face next time you see me"),
-    }
+    let perf_config = perf_event_enum.perf_config()?;
 
     perf_event.load()?;
 
@@ -230,8 +223,7 @@ fn load_attach_event(perf_event: &mut PerfEvent, perf_event_enum: PerfEventType)
 
     for cpu in online_cpus().map_err(|(_, error)| error)? {
             match perf_event.attach(
-                perf_event_category.clone(),
-                perf_id,
+                perf_config,
                 PerfEventScope::AllProcessesOneCpu { cpu },
                 SamplePolicy::Period(1000000),
                 true,
