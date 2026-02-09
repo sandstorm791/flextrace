@@ -12,7 +12,7 @@ use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 use std::ffi::CStr;
 
-//mod probes;
+mod probes;
 
 use flextrace::*;
 

@@ -1,14 +1,15 @@
 use std::sync::{Arc, Mutex};
-use aya::{maps::MapData, programs::uprobe::{UProbe, UProbeLink}, Ebpf};
+use aya::{maps::MapData, programs::uprobe::{UProbe, UProbeAttachPoint, UProbeLink, UProbeLinkId}, Ebpf};
 use flextrace::{AyaHashMap, StdHashMap};
-
 use flextrace_common::{FlextraceError, ProbeConfig};
 
 pub struct ProbeLoader {
+    // if you actually run out of cookies you better get out of the way of the sun before it swallows you
     next_probe_cookie: u64,
+
     ebpf: Arc<Mutex<Ebpf>>,
     config_map: AyaHashMap<MapData, u32, ProbeConfig>,
-    links: StdHashMap<u32, UProbeLink>,
+    links: StdHashMap<u64, UProbeLinkId>,
 }
 
 impl ProbeLoader {
@@ -28,7 +29,7 @@ impl ProbeLoader {
         }
     }
 
-    pub fn attatch_probe(&mut self, func_name: &str, executable: &str) -> Result<(), FlextraceError> {
+    pub fn attatch_probe(&mut self, func_name: &str, executable: &str, pid: Option<u32>) -> Result<(), FlextraceError> {
         let mut bpf = self.ebpf.lock().unwrap();
 
         let probe: &mut UProbe = bpf
@@ -38,7 +39,18 @@ impl ProbeLoader {
             .map_err(|_| FlextraceError::NoSuchProgram(String::from("probe_handler")))?;
 
         let link_id = probe
-            .attach(Some(func_name), 0, executable, None, self.next_probe_cookie)
+            // not a clue if this is gonna work right but we'll see
+            .attach(UProbeAttachPoint {
+                location: aya::programs::uprobe::UProbeAttachLocation::from(func_name),
+                cookie: Some(self.next_probe_cookie)},
+                executable,
+                pid).unwrap();
+
+                // ^^^ stop being lazy and map this to a FlextraceError
+
+        self.links.insert(self.next_probe_cookie, link_id);
+
+        self.next_probe_cookie += 1;
         Ok(())
     }
 }
