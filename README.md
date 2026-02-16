@@ -2,11 +2,19 @@
 flextrace is an ebpf-powered application profiling toolkit for linux
 (minimum kernel version 5.19)
 
+#### roadmap:
+
+✅ ability to do basic perf event data gathering based on various hardware and software events, including info about
+  what process triggered it, mostly helpful for big picture info
+✅ have a decent command line (will expand it for future features of course)
+- ability to unwind stack traces using frame pointers (easy)
+- ability to unwind stack traces using .eh_frame (sucks)
+- have nice data analytics features
+- gui frontend
+
 currently only supports amd64 system v abi but hopefully others soon
 
 nothing is production yet lol but hopefully it will be some time
-
-i might split this into libflextrace and some frontends some time, tell me if you think thats a good idea or not
 
 ## Prerequisites
 
