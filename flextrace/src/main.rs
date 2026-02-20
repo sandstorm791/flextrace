@@ -1,10 +1,11 @@
 use anyhow::Error;
+use aya::maps::stack_trace::StackTrace;
 use aya::programs::perf_event::PerfEventLinkId;
 use aya::programs::perf_event::{PerfEvent, PerfEventScope, SamplePolicy};
-use aya::maps::{HashMap, MapData, RingBuf};
+use aya::maps::{HashMap, MapData, RingBuf, StackTraceMap};
 use aya::util::online_cpus;
 use clap::Parser;
-use flextrace_common::{PERF_EVENT_VARIANTS, PerfEventType, PerfSample};
+use flextrace_common::{PERF_EVENT_VARIANTS, PerfEventType, PerfProcessConfig, PerfSample};
 //#[rustfmt::skip]
 use log::{debug, warn};
 use tokio::io::unix::AsyncFd;
@@ -12,7 +13,7 @@ use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 use std::ffi::CStr;
 
-mod probes;
+//mod probes;
 
 use flextrace::*;
 
@@ -21,6 +22,7 @@ use flextrace::*;
 struct Opt {
     //this way of taking in cli args is lowkey sketchy but idk i might change it later
     // just have to remind the user to enter everything IN order
+
     #[arg(short, long, default_value_t = false)]
     gui: bool,
 
@@ -35,6 +37,9 @@ struct Opt {
 
     #[arg(short = 'x', long, value_parser = parse_filter, help = "define events to ignore from certain processes: pid:event1,event2,event3\nor just the pid to drop everything from that process", default_value = "noarg")]
     filter_exclude: Vec<(u32, u32)>,
+
+    #[arg(short = 'f', long, help = "list processes to return stack traces from upon perf event hit based on frame pointers (program MUST be compiled without frame pointer omission)")]
+    stack_trace_fp: Vec<u32>,
 
     #[arg(long, alias = "list", help = "list perf events supported by flextrace (remove the event_ when using as an argument)", default_value_t = false)]
     list_events: bool,
@@ -137,18 +142,30 @@ async fn main() -> anyhow::Result<()> {
 
     // maps
 
-    // if we have a filter_exclude
-    if !(opt.filter_exclude.get(0).unwrap() == &(0, 0)) {
-        let mut filter_exclude_map: HashMap<_, u32, u32> = HashMap::try_from(ebpf.take_map("FILTER_PIDS").unwrap()).unwrap();
+    // if we have a filter_exclude or frame pointer stack trace flag
+    if (opt.filter_exclude.get(0).unwrap() != &(0, 0)) || (opt.stack_trace_fp.get(0) != None) {
+        let mut perf_process_config: HashMap<_, u32, PerfProcessConfig> = HashMap::try_from(ebpf.take_map("PERF_CONFIG").unwrap()).unwrap();
+        let mut config_temp: StdHashMap<u32, PerfProcessConfig> = StdHashMap::new();
 
         for (key, mask) in opt.filter_exclude {
-            filter_exclude_map.insert(key, mask, 0)?;
+            config_temp.insert(key, PerfProcessConfig(mask, false));
+        }
+
+        for key in opt.stack_trace_fp {
+            config_temp.entry(key).and_modify(|config| config.1 = true).or_insert(PerfProcessConfig(0, true));
+        }
+
+        for (key, config) in config_temp {
+            println!("config for pid {key}: fp stack traces: {}, mask: {}", config.1, config.0);
+            perf_process_config.insert(key, config, 0)?;
         }
     }
 
     let perf_event_buf = RingBuf::try_from(ebpf.take_map("PERF_EVENTS").unwrap()).unwrap();
     let mut asyncfd_perf_buf = AsyncFd::new(perf_event_buf)?;
     let (perf_tx, mut perf_rx) = mpsc::channel::<PerfSample>(100);
+
+    let perf_stack_trace_map = StackTraceMap::try_from(ebpf.take_map("PERF_STACK_TRACES").unwrap())?;
 
     let mut profile_data: StdHashMap<u32, ProfileData> = StdHashMap::new(); 
 
@@ -163,6 +180,14 @@ async fn main() -> anyhow::Result<()> {
 
     loop {
         if let Some(recv) = &perf_rx.recv().await {
+
+            if let Some(stackid) = recv.stack_id {
+                if stackid < 0 {
+                    println!("bpf_get_stackid() returned {stackid}!");
+                }
+                else { println!("recieved successful stackid from {}!", recv.pid); }
+            }
+
             let event_type = recv.event_type;
             let pid = recv.pid;
             let recv_gid = recv.gid;
@@ -170,7 +195,7 @@ async fn main() -> anyhow::Result<()> {
             let profile_data = profile_data.entry(pid).or_insert_with(||
                 ProfileData {
                     events: StdHashMap::new(),
-                    name: String::from(""),
+                    name: String::from_utf8_lossy(&recv.cmd).to_string(),
                     gid: 0,
                 }
             );

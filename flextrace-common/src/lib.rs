@@ -21,6 +21,7 @@ pub enum FlextraceError {
     NoPerfEventCategory(String),
     NoPerfHwId(String),
     NoPerfSwId(String),
+    UProbeAttachFailure(String),
     Msg(String),
 }
 
@@ -48,6 +49,7 @@ pub struct PerfSample {
     pub uid: u32,
     pub gid: u32,
     pub cmd: [u8; 16],
+    pub stack_id: Option<i64>,
 }
 
 // since we want to have one map for all types of perf events we'll use this internally
@@ -89,11 +91,17 @@ pub enum PerfEventType {
 #[repr(C)]
 pub struct ProbeConfig {
     pub num_args: u8,
-    pub ptr_depths: [u32; 32], // 32 arguments ought to be enough for anyone... right?
+    pub ptr_depths: [u8; 32], // 32 arguments ought to be enough for anyone... right?
 }
 
 #[cfg(feature = "user")]
 unsafe impl aya::Pod for ProbeConfig {}
+
+#[derive(Copy, Clone)]
+pub struct PerfProcessConfig(pub u32, pub bool);
+
+#[cfg(feature = "user")]
+unsafe impl aya::Pod for PerfProcessConfig {}
 
 #[cfg(feature = "user")]
 impl PerfEventType {
