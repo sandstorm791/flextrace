@@ -9,7 +9,7 @@ flextrace is an ebpf-powered application profiling toolkit for linux
 
 ✅ have a decent command line (will expand it for future features of course)
 
-- ability to unwind stack traces using frame pointers (easy)
+- ability to unwind stack traces using frame pointers (easy) (in dev branch rn experimentally)
 
 - ability to unwind stack traces using .eh_frame (sucks)
 
