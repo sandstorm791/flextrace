@@ -1,19 +1,18 @@
+use std::sync::{Arc, Mutex};
+
 use anyhow::Error;
-use aya::maps::stack_trace::StackTrace;
-use aya::programs::perf_event::PerfEventLinkId;
-use aya::programs::perf_event::{PerfEvent, PerfEventScope, SamplePolicy};
+use aya::programs::perf_event::{PerfEvent};
 use aya::maps::{HashMap, MapData, RingBuf, StackTraceMap};
-use aya::util::online_cpus;
 use clap::Parser;
 use flextrace_common::{PERF_EVENT_VARIANTS, PerfEventType, PerfProcessConfig, PerfSample};
 //#[rustfmt::skip]
-use log::{debug, warn};
+use log::{debug, info, warn};
 use tokio::io::unix::AsyncFd;
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
-use std::ffi::CStr;
 
-//mod probes;
+mod perf;
+use perf::*;
 
 use flextrace::*;
 
@@ -29,8 +28,8 @@ struct Opt {
     #[arg(short, long, default_value_t = false)]
     verbose: bool,
 
-    #[arg(short, long, value_name = "PATH")]
-    logfile: Option<String>,
+    #[arg(short, long, value_name = "PATH", help = "path to output profiling data after completing execution")]
+    out: Option<String>,
 
     #[arg(short, long, value_name = "EVENTS", help = "list of perf events to profile", default_values_t = ["all".to_string()])]
     events: Vec<String>,
@@ -98,18 +97,20 @@ async fn main() -> anyhow::Result<()> {
     
     // (no need to bump the memlock rlimit cause we don't even support kernels that old)
     // include ebpf program at compile time, load at runtime
-    let mut ebpf: aya::Ebpf = aya::Ebpf::load(aya::include_bytes_aligned!(concat!(
+    let mut ebpf = Arc::new(Mutex::new(aya::Ebpf::load(aya::include_bytes_aligned!(concat!(
         env!("OUT_DIR"),
         "/flextrace"
-    )))?;
+    )))?));
 
-    if let Err(e) = aya_log::EbpfLogger::init(&mut ebpf) {
+    let mut ebpf_lock = ebpf.lock().unwrap();
+
+    if let Err(e) = aya_log::EbpfLogger::init(&mut ebpf_lock) {
         // This can happen if you remove all log statements from your eBPF program.
         warn!("failed to initialize eBPF logger: {e}");
     }
 
     if opt.list_events {
-        for (name, prog) in ebpf.programs() {
+        for (name, prog) in ebpf_lock.programs() {
             if prog.prog_type() == aya::programs::ProgramType::PerfEvent {
                 println!("{name}");
             }
@@ -117,24 +118,27 @@ async fn main() -> anyhow::Result<()> {
         return Ok(());
     }
 
+    drop(ebpf_lock);
+
+    let mut perf_manager = PerfManager::new(ebpf)?;
+
     // load and attatch perf events
     // must happen before map stuff so that the fds for the maps remain tracked
     // unfortunately atm this can cause some data to be sent through the ringbuf prior to the filter_exclude taking effect
     for event_arg in opt.events {
         if let Some(event) = PerfEventType::ebpf_from_str(&event_arg) {
-            let perf_event: &mut PerfEvent = ebpf.program_mut(&event).unwrap().try_into()?;
             let perf_event_enum = PerfEventType::from_str(&event_arg)?;
             
-            load_attach_event(perf_event, perf_event_enum)?;
+            perf_manager.attach_event(perf_event_enum, None, None, 0);
         }
         else if PerfEventType::from_str(&event_arg)? == PerfEventType::Any {
-            println!("using all perf events\n");
+            info!("using all perf events\n");
 
-            for (name, program) in ebpf.programs_mut() {
+            for (name, program) in ebpf_lock.programs_mut() {
                 let perf_event: &mut PerfEvent = program.try_into()?;
                 let perf_event_enum = PerfEventType::from_str(&name[6..].to_string())?;
                 
-                load_attach_event(perf_event, perf_event_enum)?;
+                perf_manager.attach_event(perf_event_enum, None, None, 0)?;
             }
             break;
         }
@@ -142,50 +146,21 @@ async fn main() -> anyhow::Result<()> {
 
     // maps
 
-    // if we have a filter_exclude or frame pointer stack trace flag
+    // apply perf configuration to PERF_CONFIG map
     if (opt.filter_exclude.get(0).unwrap() != &(0, 0)) || (opt.stack_trace_fp.get(0) != None) {
-        let mut perf_process_config: HashMap<_, u32, PerfProcessConfig> = HashMap::try_from(ebpf.take_map("PERF_CONFIG").unwrap()).unwrap();
-        let mut config_temp: StdHashMap<u32, PerfProcessConfig> = StdHashMap::new();
-
-        for (key, mask) in opt.filter_exclude {
-            config_temp.insert(key, PerfProcessConfig(mask, false));
-        }
-
-        for key in opt.stack_trace_fp {
-            config_temp.entry(key).and_modify(|config| config.1 = true).or_insert(PerfProcessConfig(0, true));
-        }
-
-        for (key, config) in config_temp {
-            println!("config for pid {key}: fp stack traces: {}, mask: {}", config.1, config.0);
-            perf_process_config.insert(key, config, 0)?;
-        }
+        perf_manager.update_perf_config(opt.filter_exclude, opt.stack_trace_fp)?;
     }
-
-    let perf_event_buf = RingBuf::try_from(ebpf.take_map("PERF_EVENTS").unwrap()).unwrap();
-    let mut asyncfd_perf_buf = AsyncFd::new(perf_event_buf)?;
-    let (perf_tx, mut perf_rx) = mpsc::channel::<PerfSample>(100);
-
-    let perf_stack_trace_map = StackTraceMap::try_from(ebpf.take_map("PERF_STACK_TRACES").unwrap())?;
 
     let mut profile_data: StdHashMap<u32, ProfileData> = StdHashMap::new(); 
 
-    // poll and read the maps (non-blockingly :D)
-    let map_polling_task: JoinHandle<anyhow::Result<()>> = tokio::spawn(async move {
-        loop {
-            for i in ringbuf_read(&mut asyncfd_perf_buf).await.unwrap() {
-                perf_tx.send(i).await.map_err(|_| anyhow::anyhow!("reciever closed?"))?;
-            }
-        }
-    });
-
     loop {
-        if let Some(recv) = &perf_rx.recv().await {
+        if let Some(recv) = &perf_manager.event_rx.recv().await {
 
             if let Some(stackid) = recv.stack_id {
                 if stackid < 0 {
-                    println!("bpf_get_stackid() returned {stackid}!");
+                    debug!("bpf_get_stackid() returned {stackid}!");
                 }
-                else { println!("recieved successful stackid from {}!", recv.pid); }
+                else { debug!("recieved successful stackid from {}!", recv.pid); }
             }
 
             let event_type = recv.event_type;
@@ -206,60 +181,4 @@ async fn main() -> anyhow::Result<()> {
         }
     }
 
-}
-
-async fn ringbuf_read<T: Copy>(fd: &mut AsyncFd<RingBuf<MapData>>) -> Result<Vec<T>, Error> {
-    let mut readguard = fd.readable_mut().await.unwrap();
-    let mut items: Vec<T> = Vec::new();
-
-    readguard.try_io(|inner|{
-        let mut count: usize = 0;
-
-        while let Some(event) = inner.get_mut().next() {
-            // reserve/submit api guarantees an unmangled struct
-            // but .next() still returns [u8] so we need to unsafe pointer cast
-
-            let event_struct = unsafe {
-                let ptr = event.as_ptr() as *const T;
-
-                *ptr
-            };
-
-            items.push(event_struct);
-            count += 1;
-
-        }
-
-        Ok(count)
-    }).unwrap().unwrap();
-
-        //println!("ringbuf processed {} items", count_processed);
-
-        readguard.clear_ready();
-        Ok(items)
-}
-
-fn load_attach_event(perf_event: &mut PerfEvent, perf_event_enum: PerfEventType) -> anyhow::Result<Vec<PerfEventLinkId>> {
-    let perf_config = perf_event_enum.perf_config()?;
-
-    perf_event.load()?;
-
-    let mut links: Vec<PerfEventLinkId> = Vec::new();
-
-    for cpu in online_cpus().map_err(|(_, error)| error)? {
-            match perf_event.attach(
-                perf_config,
-                PerfEventScope::AllProcessesOneCpu { cpu },
-                SamplePolicy::Period(1000000),
-                true,
-            ) {
-                Ok(link_id) => links.push(link_id),
-                Err(_e) => {
-                    println!("system does not support perf event {}", perf_event_enum.ebpf_from_self().unwrap_or(String::from("could not get the string version of this event i guess, weird...")));
-                    break;
-                },
-            };
-    }
-
-    Ok(links)
 }
