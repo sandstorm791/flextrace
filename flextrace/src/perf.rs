@@ -4,11 +4,11 @@ use anyhow::Result;
 use aya::{maps::{MapData, RingBuf, StackTraceMap}, programs::{perf_event::{PerfEventLink, PerfEventScope, SamplePolicy}, PerfEvent, Program}, util::online_cpus, Ebpf};
 use flextrace::{AyaHashMap, ringbuf_read};
 use flextrace_common::{FlextraceError, PerfEventType, PerfProcessConfig, PerfSample};
-use log::{debug, info};
+use log::{debug, info, warn};
 use tokio::{io::unix::AsyncFd, sync::mpsc::{self, Receiver}, task::JoinHandle};
 
 pub struct PerfManager {
-    ebpf: Arc<Mutex<Ebpf>>,
+    ebpf: Ebpf,
 
     map_perf_config: AyaHashMap<MapData, u32, PerfProcessConfig>,
     map_stack_traces: StackTraceMap<MapData>,
@@ -26,33 +26,43 @@ pub struct ProfileData {
 }
 
 impl PerfManager {
-    pub fn new(ebpf_shared: Arc<Mutex<Ebpf>>) -> Result<Self> {
-        let mut bpf = ebpf_shared.lock().unwrap();
+    pub fn new() -> Result<Self> {
+        let mut ebpf = aya::Ebpf::load(aya::include_bytes_aligned!(concat!(
+            env!("OUT_DIR"),
+            "/flextrace"
+        )))?;
+
+        if let Err(e) = aya_log::EbpfLogger::init(&mut ebpf) {
+            // This can happen if you remove all log statements from your eBPF program.
+            warn!("failed to initialize eBPF logger: {e}");
+        }
 
         // load ALL of the perf events into the kernel before we attach them so that the map fds know where to go
-        for (name, program) in bpf.programs_mut() {
+        for (name, program) in ebpf.programs_mut() {
             match program {
                 Program::PerfEvent(p) => {
                     p.load()?;
-                    info!("loaded perf event n stuff yeah");
                 },
                 _ => continue,
             }
         }
+        info!("perf events loaded into kernel");
 
         // access the maps
         let config_map = { 
-            let raw_map = bpf.take_map("PERF_CONFIG").unwrap();
+            let raw_map = ebpf.take_map("PERF_CONFIG").unwrap();
             AyaHashMap::try_from(raw_map).unwrap()
         };
         let event_map = {
-            let raw_map = bpf.take_map("PERF_EVENTS").unwrap();
+            let raw_map = ebpf.take_map("PERF_EVENTS").unwrap();
             RingBuf::try_from(raw_map).unwrap()
         };
         let stack_traces = {
-            let raw_map = bpf.take_map("PERF_STACK_TRACES").unwrap();
+            let raw_map = ebpf.take_map("PERF_STACK_TRACES").unwrap();
             StackTraceMap::try_from(raw_map).unwrap()
         };
+        info!("maps initialized");
+
         let mut ringbuf_fd = AsyncFd::new(event_map)?;
         let (perf_tx, perf_rx) = mpsc::channel::<PerfSample>(100);
 
@@ -63,11 +73,10 @@ impl PerfManager {
                 }
             }
         });
-
-        drop(bpf);
+        info!("event poller started");
 
         Ok(Self {
-            ebpf: ebpf_shared,
+            ebpf: ebpf,
             map_perf_config: config_map,
             map_stack_traces: stack_traces,
             links: StdHashMap::new(),
@@ -78,15 +87,14 @@ impl PerfManager {
 
     pub fn attach_event(&mut self, perf_event_enum: PerfEventType, pid: Option<u32>, period: Option<u64>, id: u64) -> anyhow::Result<()> {
         let perf_config = perf_event_enum.perf_config()?;
-        let mut bpf = self.ebpf.lock().unwrap();
 
         let perf_ebpf_name = match perf_event_enum.ebpf_from_self() {
             Some(name) => name,
             None => return Err(anyhow::Error::msg("no such valid perf event")),
         };
 
-        let perf_event: &mut PerfEvent = bpf.program_mut(&perf_ebpf_name)
-            .ok_or(FlextraceError::NoSuchProgram(String::from(perf_ebpf_name)))?
+        let perf_event: &mut PerfEvent = self.ebpf.program_mut(&perf_ebpf_name)
+            .ok_or(FlextraceError::NoSuchProgram(String::from(&perf_ebpf_name)))?
             .try_into()
             .map_err(|_| FlextraceError::Msg(String::from("failed to convert aya Program to PerfEvent? tell me about this bug")))?;
 
@@ -98,11 +106,16 @@ impl PerfManager {
             some_period = period;
         }
 
+        let mut scope_info = String::from("all processes");
+
         for cpu in online_cpus().map_err(|(_, error)| error)? {
             match perf_event.attach(
                 perf_config,
                 match pid {
-                    Some(some_pid) => PerfEventScope::OneProcess { pid: some_pid, cpu: Some(cpu) },
+                    Some(some_pid) => {
+                        scope_info = String::from("pid ") + &some_pid.to_string();
+                        PerfEventScope::OneProcess { pid: some_pid, cpu: Some(cpu) }
+                },
                     None => PerfEventScope::AllProcessesOneCpu { cpu },
                 },
                 SamplePolicy::Period(some_period),
@@ -115,11 +128,19 @@ impl PerfManager {
                 },
             };
         }
+        info!("attached perf event {perf_ebpf_name} with id: {id} sampling period: {some_period} scope: {scope_info}");
 
         self.links.insert(id, links);
 
-        drop(bpf);
         Ok(())
+    }
+
+    pub fn list_events(&self) -> Vec<String> {
+        let mut names: Vec<String> = Vec::new();
+        for (name, prog) in self.ebpf.programs() {
+            names.push(name.to_string());
+        }
+        names
     }
 
     pub fn detach_event(&mut self, id: u64) {

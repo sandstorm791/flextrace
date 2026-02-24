@@ -92,58 +92,41 @@ async fn main() -> anyhow::Result<()> {
     
     // (no need to bump the memlock rlimit cause we don't even support kernels that old)
     //include ebpf program at compile time, load at runtime
-    let ebpf = Arc::new(Mutex::new(aya::Ebpf::load(aya::include_bytes_aligned!(concat!(
-        env!("OUT_DIR"),
-        "/flextrace"
-    )))?));
 
-    let mut ebpf_lock = ebpf.lock().unwrap();
+    let mut perf_manager = PerfManager::new()?;
 
-    if let Err(e) = aya_log::EbpfLogger::init(&mut ebpf_lock) {
-        // This can happen if you remove all log statements from your eBPF program.
-        warn!("failed to initialize eBPF logger: {e}");
-    }
-
-    
     if opt.list_events {
-        for (name, prog) in ebpf_lock.programs() {
-            if prog.prog_type() == aya::programs::ProgramType::PerfEvent {
-                println!("{name}");
-            }
+        for name in perf_manager.list_events() {
+            info!("{name}");
+            return Ok(())
         }
-        return Ok(());
     }
-
-    drop(ebpf_lock);
-
-    let mut perf_manager = PerfManager::new(ebpf.clone())?;
-
-    // load and attach perf events
-    // must happen before map stuff so that the fds for the maps remain tracked
-    // unfortunately atm this can cause some data to be sent through the ringbuf prior to the filter_exclude taking effect
-    for event_arg in opt.events {
-        if !(PerfEventType::from_str(&event_arg)? == PerfEventType::Any) {
-            let perf_event_enum = PerfEventType::from_str(&event_arg)?;
-            perf_manager.attach_event(perf_event_enum, None, None, 0)?;
-        }
-        /*
-        else {
-            info!("using all perf events\n");
-
-            for (name, program) in ebpf.lock().unwrap().programs_mut() {
-                let perf_event_enum = PerfEventType::from_str(&name[6..].to_string())?;
-                perf_manager.attach_event(perf_event_enum, None, None, 0)?;
-            }
-            break;
-        }
-        */
-    }
-
-    // maps
 
     // apply perf configuration to PERF_CONFIG map
     if (opt.filter_exclude.get(0).unwrap() != &(0, 0)) || (opt.stack_trace_fp.get(0) != None) {
         perf_manager.update_perf_config(opt.filter_exclude, opt.stack_trace_fp)?;
+    }
+
+
+    let mut nextid: u64 = 0;
+
+    // load and attach perf events
+    for event_arg in opt.events {
+        if !(PerfEventType::from_str(&event_arg)? == PerfEventType::Any) {
+            let perf_event_enum = PerfEventType::from_str(&event_arg)?;
+            perf_manager.attach_event(perf_event_enum, None, None, nextid)?;
+        }
+        else {
+            info!("using all perf events\n");
+
+            for name in perf_manager.list_events(){
+                let perf_event_enum = PerfEventType::from_str(&name[6..].to_string())?;
+                perf_manager.attach_event(perf_event_enum, None, None, nextid)?;
+                nextid += 1;
+            }
+            break;
+        }
+        nextid += 1;
     }
 
     let mut profile_data: StdHashMap<u32, ProfileData> = StdHashMap::new(); 
@@ -155,7 +138,6 @@ async fn main() -> anyhow::Result<()> {
                 if stackid < 0 {
                     debug!("bpf_get_stackid() returned {stackid}!");
                 }
-                else { info!("recieved successful stackid from {}!", recv.pid); }
             }
 
             let event_type = recv.event_type;
