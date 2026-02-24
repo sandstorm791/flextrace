@@ -9,6 +9,7 @@ use aya_ebpf::{EbpfContext, bpf_printk};
 use aya_ebpf::macros::{map, perf_event};
 use aya_ebpf::programs::PerfEventContext;
 use aya_ebpf::maps::{HashMap, RingBuf, StackTrace};
+use aya_log_ebpf::info;
 use flextrace_common::{PerfSample, PerfEventType};
 
 #[map]
@@ -52,6 +53,7 @@ fn handle_perf_event(ctx: PerfEventContext, e_type: u8) -> u32 {
     }
     else {
         unsafe { bpf_printk!(b" !!! could not reserve space in PERF_EVENTS buffer !!!"); }
+        //info!(&ctx, "could not reserve space in PERF_EVENTS buffer!");
     }
 
     0

@@ -1,15 +1,10 @@
 use std::sync::{Arc, Mutex};
 
-use anyhow::Error;
-use aya::programs::perf_event::{PerfEvent};
-use aya::maps::{HashMap, MapData, RingBuf, StackTraceMap};
+use aya::programs::{PerfEvent, Program};
 use clap::Parser;
-use flextrace_common::{PERF_EVENT_VARIANTS, PerfEventType, PerfProcessConfig, PerfSample};
+use flextrace_common::{PERF_EVENT_VARIANTS, PerfEventType};
 //#[rustfmt::skip]
 use log::{debug, info, warn};
-use tokio::io::unix::AsyncFd;
-use tokio::sync::mpsc;
-use tokio::task::JoinHandle;
 
 mod perf;
 use perf::*;
@@ -96,8 +91,8 @@ async fn main() -> anyhow::Result<()> {
     env_logger::init();
     
     // (no need to bump the memlock rlimit cause we don't even support kernels that old)
-    // include ebpf program at compile time, load at runtime
-    let mut ebpf = Arc::new(Mutex::new(aya::Ebpf::load(aya::include_bytes_aligned!(concat!(
+    //include ebpf program at compile time, load at runtime
+    let ebpf = Arc::new(Mutex::new(aya::Ebpf::load(aya::include_bytes_aligned!(concat!(
         env!("OUT_DIR"),
         "/flextrace"
     )))?));
@@ -109,6 +104,7 @@ async fn main() -> anyhow::Result<()> {
         warn!("failed to initialize eBPF logger: {e}");
     }
 
+    
     if opt.list_events {
         for (name, prog) in ebpf_lock.programs() {
             if prog.prog_type() == aya::programs::ProgramType::PerfEvent {
@@ -120,28 +116,27 @@ async fn main() -> anyhow::Result<()> {
 
     drop(ebpf_lock);
 
-    let mut perf_manager = PerfManager::new(ebpf)?;
+    let mut perf_manager = PerfManager::new(ebpf.clone())?;
 
-    // load and attatch perf events
+    // load and attach perf events
     // must happen before map stuff so that the fds for the maps remain tracked
     // unfortunately atm this can cause some data to be sent through the ringbuf prior to the filter_exclude taking effect
     for event_arg in opt.events {
-        if let Some(event) = PerfEventType::ebpf_from_str(&event_arg) {
+        if !(PerfEventType::from_str(&event_arg)? == PerfEventType::Any) {
             let perf_event_enum = PerfEventType::from_str(&event_arg)?;
-            
-            perf_manager.attach_event(perf_event_enum, None, None, 0);
+            perf_manager.attach_event(perf_event_enum, None, None, 0)?;
         }
-        else if PerfEventType::from_str(&event_arg)? == PerfEventType::Any {
+        /*
+        else {
             info!("using all perf events\n");
 
-            for (name, program) in ebpf_lock.programs_mut() {
-                let perf_event: &mut PerfEvent = program.try_into()?;
+            for (name, program) in ebpf.lock().unwrap().programs_mut() {
                 let perf_event_enum = PerfEventType::from_str(&name[6..].to_string())?;
-                
                 perf_manager.attach_event(perf_event_enum, None, None, 0)?;
             }
             break;
         }
+        */
     }
 
     // maps
@@ -160,7 +155,7 @@ async fn main() -> anyhow::Result<()> {
                 if stackid < 0 {
                     debug!("bpf_get_stackid() returned {stackid}!");
                 }
-                else { debug!("recieved successful stackid from {}!", recv.pid); }
+                else { info!("recieved successful stackid from {}!", recv.pid); }
             }
 
             let event_type = recv.event_type;
@@ -180,5 +175,4 @@ async fn main() -> anyhow::Result<()> {
             profile_data.gid = recv_gid;
         }
     }
-
 }

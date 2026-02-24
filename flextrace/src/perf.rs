@@ -1,7 +1,7 @@
 use std::{collections::HashMap as StdHashMap, sync::{Arc, Mutex}};
 
 use anyhow::Result;
-use aya::{Ebpf, maps::{MapData, RingBuf, StackTraceMap}, programs::{PerfEvent, perf_event::{PerfEventLink, PerfEventScope, SamplePolicy}}, util::online_cpus};
+use aya::{maps::{MapData, RingBuf, StackTraceMap}, programs::{perf_event::{PerfEventLink, PerfEventScope, SamplePolicy}, PerfEvent, Program}, util::online_cpus, Ebpf};
 use flextrace::{AyaHashMap, ringbuf_read};
 use flextrace_common::{FlextraceError, PerfEventType, PerfProcessConfig, PerfSample};
 use log::{debug, info};
@@ -29,6 +29,18 @@ impl PerfManager {
     pub fn new(ebpf_shared: Arc<Mutex<Ebpf>>) -> Result<Self> {
         let mut bpf = ebpf_shared.lock().unwrap();
 
+        // load ALL of the perf events into the kernel before we attach them so that the map fds know where to go
+        for (name, program) in bpf.programs_mut() {
+            match program {
+                Program::PerfEvent(p) => {
+                    p.load()?;
+                    info!("loaded perf event n stuff yeah");
+                },
+                _ => continue,
+            }
+        }
+
+        // access the maps
         let config_map = { 
             let raw_map = bpf.take_map("PERF_CONFIG").unwrap();
             AyaHashMap::try_from(raw_map).unwrap()
@@ -41,7 +53,6 @@ impl PerfManager {
             let raw_map = bpf.take_map("PERF_STACK_TRACES").unwrap();
             StackTraceMap::try_from(raw_map).unwrap()
         };
-
         let mut ringbuf_fd = AsyncFd::new(event_map)?;
         let (perf_tx, perf_rx) = mpsc::channel::<PerfSample>(100);
 
@@ -67,19 +78,17 @@ impl PerfManager {
 
     pub fn attach_event(&mut self, perf_event_enum: PerfEventType, pid: Option<u32>, period: Option<u64>, id: u64) -> anyhow::Result<()> {
         let perf_config = perf_event_enum.perf_config()?;
-        let mut ebpf = self.ebpf.lock().unwrap();
+        let mut bpf = self.ebpf.lock().unwrap();
 
         let perf_ebpf_name = match perf_event_enum.ebpf_from_self() {
             Some(name) => name,
             None => return Err(anyhow::Error::msg("no such valid perf event")),
         };
 
-        let perf_event: &mut PerfEvent = ebpf.program_mut(&perf_ebpf_name)
+        let perf_event: &mut PerfEvent = bpf.program_mut(&perf_ebpf_name)
             .ok_or(FlextraceError::NoSuchProgram(String::from(perf_ebpf_name)))?
             .try_into()
             .map_err(|_| FlextraceError::Msg(String::from("failed to convert aya Program to PerfEvent? tell me about this bug")))?;
-        
-        perf_event.load();
 
         let mut links: Vec<PerfEventLink> = Vec::new();
 
@@ -109,6 +118,7 @@ impl PerfManager {
 
         self.links.insert(id, links);
 
+        drop(bpf);
         Ok(())
     }
 
