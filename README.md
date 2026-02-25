@@ -1,5 +1,6 @@
 # flextrace
 flextrace is an ebpf-powered application profiling toolkit for linux
+
 (minimum kernel version is something pretty modern cause this uses aya mainline until next version is actually released and it has weird verifier issues on older kernels)
 
 currently only supports amd64 system v abi but hopefully others soon
