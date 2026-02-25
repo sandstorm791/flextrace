@@ -1,16 +1,13 @@
-use anyhow::Error;
-use aya::programs::perf_event::PerfEventLinkId;
-use aya::programs::{PerfEvent, PerfEventScope, PerfTypeId, SamplePolicy};
-use aya::maps::{HashMap, MapData, RingBuf};
-use aya::util::online_cpus;
+use std::sync::{Arc, Mutex};
+
+use aya::programs::{PerfEvent, Program};
 use clap::Parser;
-use flextrace_common::{PERF_EVENT_VARIANTS, PerfEventType, PerfSample};
+use flextrace_common::{PERF_EVENT_VARIANTS, PerfEventType};
 //#[rustfmt::skip]
-use log::{debug, warn};
-use tokio::io::unix::AsyncFd;
-use tokio::sync::mpsc;
-use tokio::task::JoinHandle;
-use std::ffi::CStr;
+use log::{debug, info, warn};
+
+mod perf;
+use perf::*;
 
 use flextrace::*;
 
@@ -19,14 +16,15 @@ use flextrace::*;
 struct Opt {
     //this way of taking in cli args is lowkey sketchy but idk i might change it later
     // just have to remind the user to enter everything IN order
+
     #[arg(short, long, default_value_t = false)]
     gui: bool,
 
     #[arg(short, long, default_value_t = false)]
     verbose: bool,
 
-    #[arg(short, long, value_name = "PATH")]
-    logfile: Option<String>,
+    #[arg(short, long, value_name = "PATH", help = "path to output profiling data after completing execution")]
+    out: Option<String>,
 
     #[arg(short, long, value_name = "EVENTS", help = "list of perf events to profile", default_values_t = ["all".to_string()])]
     events: Vec<String>,
@@ -34,7 +32,10 @@ struct Opt {
     #[arg(short = 'x', long, value_parser = parse_filter, help = "define events to ignore from certain processes: pid:event1,event2,event3\nor just the pid to drop everything from that process", default_value = "noarg")]
     filter_exclude: Vec<(u32, u32)>,
 
-    #[arg(long, alias = "list", help = "list perf events supported by flextrace", default_value_t = false)]
+    #[arg(short = 'f', long, help = "list processes to return stack traces from upon perf event hit based on frame pointers (program MUST be compiled without frame pointer omission)")]
+    stack_trace_fp: Vec<u32>,
+
+    #[arg(long, alias = "list", help = "list perf events supported by flextrace (remove the event_ when using as an argument)", default_value_t = false)]
     list_events: bool,
 }
 
@@ -88,89 +89,57 @@ async fn main() -> anyhow::Result<()> {
     let opt = Opt::parse();
 
     env_logger::init();
+    
+    // (no need to bump the memlock rlimit cause we don't even support kernels that old)
+    //include ebpf program at compile time, load at runtime
 
-    // Bump the memlock rlimit. This is needed for older kernels that don't use the
-    // new memcg based accounting, see https://lwn.net/Articles/837122/
-    let rlim = libc::rlimit {
-        rlim_cur: libc::RLIM_INFINITY,
-        rlim_max: libc::RLIM_INFINITY,
-    };
-    let ret = unsafe { libc::setrlimit(libc::RLIMIT_MEMLOCK, &rlim) };
-    if ret != 0 {
-        debug!("remove limit on locked memory failed, ret is: {ret}");
-    }
-
-    // include ebpf program at compile time, load at runtime
-    let mut ebpf: aya::Ebpf = aya::Ebpf::load(aya::include_bytes_aligned!(concat!(
-        env!("OUT_DIR"),
-        "/flextrace"
-    )))?;
-
-    if let Err(e) = aya_log::EbpfLogger::init(&mut ebpf) {
-        // This can happen if you remove all log statements from your eBPF program.
-        warn!("failed to initialize eBPF logger: {e}");
-    }
+    let mut perf_manager = PerfManager::new()?;
 
     if opt.list_events {
-        for (name, prog) in ebpf.programs() {
-            if prog.prog_type() == aya::programs::ProgramType::PerfEvent {
-                println!("{name}");
-            }
+        for name in perf_manager.list_events() {
+            info!("{name}");
+            return Ok(())
         }
-        return Ok(());
     }
 
-    // load and attatch perf events
-    // must happen before map stuff so that the fds for the maps remain tracked
-    // unfortunately atm this can cause some data to be sent through the ringbuf prior to the filter_exclude taking effect
-    for event_arg in opt.events {
-        if let Some(event) = PerfEventType::ebpf_from_str(&event_arg) {
-            let perf_event: &mut PerfEvent = ebpf.program_mut(&event).unwrap().try_into()?;
-            let perf_event_enum = PerfEventType::from_str(&event_arg)?;
-            
-            load_attach_event(perf_event, perf_event_enum)?;
-        }
-        else if PerfEventType::from_str(&event_arg)? == PerfEventType::Any {
-            println!("using all perf events\n");
+    // apply perf configuration to PERF_CONFIG map
+    if (opt.filter_exclude.get(0).unwrap() != &(0, 0)) || (opt.stack_trace_fp.get(0) != None) {
+        perf_manager.update_perf_config(opt.filter_exclude, opt.stack_trace_fp)?;
+    }
 
-            for (name, program) in ebpf.programs_mut() {
-                let perf_event: &mut PerfEvent = program.try_into()?;
+
+    let mut nextid: u64 = 0;
+
+    // load and attach perf events
+    for event_arg in opt.events {
+        if !(PerfEventType::from_str(&event_arg)? == PerfEventType::Any) {
+            let perf_event_enum = PerfEventType::from_str(&event_arg)?;
+            perf_manager.attach_event(perf_event_enum, None, None, nextid)?;
+        }
+        else {
+            info!("using all perf events\n");
+
+            for name in perf_manager.list_events(){
                 let perf_event_enum = PerfEventType::from_str(&name[6..].to_string())?;
-                
-                load_attach_event(perf_event, perf_event_enum)?;
+                perf_manager.attach_event(perf_event_enum, None, None, nextid)?;
+                nextid += 1;
             }
             break;
         }
+        nextid += 1;
     }
-
-    // maps
-
-    // if we have a filter_exclude
-    if !(opt.filter_exclude.get(0).unwrap() == &(0, 0)) {
-        let mut filter_exclude_map: HashMap<_, u32, u32> = HashMap::try_from(ebpf.take_map("FILTER_PIDS").unwrap()).unwrap();
-
-        for (key, mask) in opt.filter_exclude {
-            filter_exclude_map.insert(key, mask, 0)?;
-        }
-    }
-
-    let perf_event_buf = RingBuf::try_from(ebpf.take_map("PERF_EVENTS").unwrap()).unwrap();
-    let mut asyncfd_perf_buf = AsyncFd::new(perf_event_buf)?;
-    let (perf_tx, mut perf_rx) = mpsc::channel::<PerfSample>(100);
 
     let mut profile_data: StdHashMap<u32, ProfileData> = StdHashMap::new(); 
 
-    // poll and read the maps (non-blockingly :D)
-    let map_polling_task: JoinHandle<anyhow::Result<()>> = tokio::spawn(async move {
-        loop {
-            for i in ringbuf_read(&mut asyncfd_perf_buf).await.unwrap() {
-                perf_tx.send(i).await.map_err(|_| anyhow::anyhow!("reciever closed?"))?;
-            }
-        }
-    });
-
     loop {
-        if let Some(recv) = &perf_rx.recv().await {
+        if let Some(recv) = &perf_manager.event_rx.recv().await {
+
+            if let Some(stackid) = recv.stack_id {
+                if stackid < 0 {
+                    debug!("bpf_get_stackid() returned {stackid}!");
+                }
+            }
+
             let event_type = recv.event_type;
             let pid = recv.pid;
             let recv_gid = recv.gid;
@@ -178,7 +147,7 @@ async fn main() -> anyhow::Result<()> {
             let profile_data = profile_data.entry(pid).or_insert_with(||
                 ProfileData {
                     events: StdHashMap::new(),
-                    name: String::from(""),
+                    name: String::from_utf8_lossy(&recv.cmd).to_string(),
                     gid: 0,
                 }
             );
@@ -188,69 +157,4 @@ async fn main() -> anyhow::Result<()> {
             profile_data.gid = recv_gid;
         }
     }
-
-}
-
-async fn ringbuf_read<T: Copy>(fd: &mut AsyncFd<RingBuf<MapData>>) -> Result<Vec<T>, Error> {
-    let mut readguard = fd.readable_mut().await.unwrap();
-    let mut items: Vec<T> = Vec::new();
-
-    readguard.try_io(|inner|{
-        let mut count: usize = 0;
-
-        while let Some(event) = inner.get_mut().next() {
-            // reserve/submit api guarantees an unmangled struct
-            // but .next() still returns [u8] so we need to unsafe pointer cast
-
-            let event_struct = unsafe {
-                let ptr = event.as_ptr() as *const T;
-
-                *ptr
-            };
-
-            items.push(event_struct);
-            count += 1;
-
-        }
-
-        Ok(count)
-    }).unwrap().unwrap();
-
-        //println!("ringbuf processed {} items", count_processed);
-
-        readguard.clear_ready();
-        Ok(items)
-}
-
-fn load_attach_event(perf_event: &mut PerfEvent, perf_event_enum: PerfEventType) -> anyhow::Result<Vec<PerfEventLinkId>> {
-    let perf_event_category = perf_event_enum.perf_event_category()?;
-    let perf_id: u64;
-
-    match perf_event_category {
-        PerfTypeId::Hardware => perf_id = perf_event_enum.perf_hw_id()? as u64,
-        PerfTypeId::Software => perf_id = perf_event_enum.perf_sw_id()? as u64,
-        _ => panic!("please fix this!!! add a handler for perf event types other\nthan hardware and software!!!!!\n\nif you're seeing this in prod i give you full permission to slap me in the face next time you see me"),
-    }
-
-    perf_event.load()?;
-
-    let mut links: Vec<PerfEventLinkId> = Vec::new();
-
-    for cpu in online_cpus().map_err(|(_, error)| error)? {
-            match perf_event.attach(
-                perf_event_category.clone(),
-                perf_id,
-                PerfEventScope::AllProcessesOneCpu { cpu },
-                SamplePolicy::Period(1000000),
-                true,
-            ) {
-                Ok(link_id) => links.push(link_id),
-                Err(_e) => {
-                    println!("system does not support perf event {}", perf_event_enum.ebpf_from_self().unwrap_or(String::from("could not get the string version of this event i guess, weird...")));
-                    break;
-                },
-            };
-    }
-
-    Ok(links)
 }
