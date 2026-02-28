@@ -52,8 +52,8 @@ fn handle_perf_event(ctx: PerfEventContext, e_type: u8) -> u32 {
         buf.submit(0);
     }
     else {
-        unsafe { bpf_printk!(b" !!! could not reserve space in PERF_EVENTS buffer !!!"); }
-        //info!(&ctx, "could not reserve space in PERF_EVENTS buffer!");
+        unsafe { bpf_printk!(b"could not reserve space in PERF_EVENTS buffer"); }
+        info!(&ctx, "could not reserve space in PERF_EVENTS buffer!");
     }
 
     0

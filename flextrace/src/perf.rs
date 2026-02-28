@@ -1,7 +1,7 @@
 use std::{collections::HashMap as StdHashMap, sync::{Arc, Mutex}};
 
 use anyhow::Result;
-use aya::{maps::{MapData, RingBuf, StackTraceMap}, programs::{perf_event::{PerfEventLink, PerfEventScope, SamplePolicy}, PerfEvent, Program}, util::online_cpus, Ebpf};
+use aya::{Ebpf, maps::{MapData, RingBuf, StackTraceMap, stack_trace::StackTrace}, programs::{PerfEvent, Program, perf_event::{PerfEventLink, PerfEventScope, SamplePolicy}}, util::online_cpus};
 use flextrace::{AyaHashMap, ringbuf_read};
 use flextrace_common::{FlextraceError, PerfEventType, PerfProcessConfig, PerfSample};
 use log::{debug, info, warn};
@@ -164,5 +164,9 @@ impl PerfManager {
         }
 
         Ok(())
+    }
+
+    pub fn get_stack_fp(&mut self, id: i64) -> Result<StackTrace, aya::maps::MapError> {
+        self.map_stack_traces.get(&(id as u32), 0)
     }
 }

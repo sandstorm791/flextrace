@@ -138,6 +138,8 @@ async fn main() -> anyhow::Result<()> {
                 if stackid < 0 {
                     debug!("bpf_get_stackid() returned {stackid}!");
                 }
+
+                let trace = perf_manager.get_stack_fp(stackid)?;
             }
 
             let event_type = recv.event_type;
