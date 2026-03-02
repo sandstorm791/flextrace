@@ -1,5 +1,6 @@
 #![no_std]
 #![no_main]
+
 use core::panic;
 
 use aya_ebpf::bindings::BPF_F_USER_STACK;
@@ -12,13 +13,13 @@ use aya_ebpf::maps::{HashMap, RingBuf, StackTrace};
 use aya_log_ebpf::info;
 use flextrace_common::{PerfSample, PerfEventType};
 
-#[map]
+#[map(name = "PERF_EVENTS")]
 pub static PERF_EVENTS: RingBuf = RingBuf::with_byte_size(1000 * 3000, 0); // ~3MB, exact amount handled by aya
 
-#[map]
+#[map(name = "PERF_STACK_TRACES")]
 pub static PERF_STACK_TRACES: StackTrace = StackTrace::with_max_entries(5000, 0); //~5MB i think? maybe in the future make this a runtime toggleable thing
 
-#[map]
+#[map(name = "PERF_CONFIG")]
 //10k processes ought to be enough for anybody
 pub static PERF_CONFIG: HashMap<u32, (u32, bool)> = HashMap::with_max_entries(10000, 0);
 
@@ -52,8 +53,8 @@ fn handle_perf_event(ctx: PerfEventContext, e_type: u8) -> u32 {
         buf.submit(0);
     }
     else {
-        unsafe { bpf_printk!(b" !!! could not reserve space in PERF_EVENTS buffer !!!"); }
-        //info!(&ctx, "could not reserve space in PERF_EVENTS buffer!");
+        unsafe { bpf_printk!(b"could not reserve space in PERF_EVENTS buffer"); }
+        info!(&ctx, "could not reserve space in PERF_EVENTS buffer!");
     }
 
     0
