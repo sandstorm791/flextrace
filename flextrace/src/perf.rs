@@ -1,7 +1,8 @@
-use std::{collections::HashMap as StdHashMap};
+use std::{collections::HashMap as StdHashMap, num::NonZero};
 
 use anyhow::Result;
-use aya::{Ebpf, maps::{MapData, RingBuf, StackTraceMap, stack_trace::StackTrace}, programs::{PerfEvent, Program, perf_event::{PerfEventLink, PerfEventScope, SamplePolicy}}, util::online_cpus};
+use aya::{Ebpf, maps::{MapData, RingBuf, StackTraceMap, stack_trace::{StackFrame, StackTrace}}, programs::{PerfEvent, Program, perf_event::{PerfEventLink, PerfEventScope, SamplePolicy}}, util::online_cpus};
+use blazesym::{Pid, symbolize::{Input, Sym, Symbolized, Symbolizer, source::{Process, Source}}};
 use flextrace::{AyaHashMap, ringbuf_read};
 use flextrace_common::{FlextraceError, PerfEventType, PerfProcessConfig, PerfSample};
 use log::{debug, info};
@@ -15,6 +16,7 @@ pub struct PerfManager {
 
     pub event_rx: Receiver<PerfSample>,
     event_polling_task: JoinHandle<anyhow::Result<()>>,
+    symbolizer: Symbolizer,
 
     links: StdHashMap<u64, Vec<PerfEventLink>>,
 }
@@ -91,6 +93,7 @@ impl PerfManager {
             links: StdHashMap::new(),
             event_polling_task: polling_task,
             event_rx: perf_rx,
+            symbolizer: Symbolizer::new(),
         })
     }
 
@@ -177,5 +180,28 @@ impl PerfManager {
 
     pub fn get_stack_fp(&mut self, id: i64) -> Result<StackTrace, aya::maps::MapError> {
         self.map_stack_traces.get(&(id as u32), 0)
+    }
+
+    pub fn symbolize_fp_trace(&mut self, trace: StackTrace, pid: u32) -> Result<Vec<String>> {
+        let mut ips: Vec<u64> = Vec::new();
+
+        for frame in trace.frames() {
+            ips.push(frame.ip);
+        }
+
+        let syms = self.symbolizer.symbolize(&Source::Process(Process::new(Pid::Pid(NonZero::new(pid).unwrap()))), Input::AbsAddr(&ips))?;
+        let mut trace_parsed: Vec<String> = Vec::new();
+
+        for result in syms {
+            match result {
+                Symbolized::Sym(Sym {
+                    name,
+                    ..
+                }) => { trace_parsed.push(name.to_string()) }
+                Symbolized::Unknown(..) =>  { trace_parsed.push(String::from("nosym? add additional info in the future")) }
+            }
+        }
+
+        Ok(trace_parsed)
     }
 }

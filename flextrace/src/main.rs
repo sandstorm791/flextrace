@@ -130,7 +130,7 @@ async fn main() -> anyhow::Result<()> {
     }
 
     let mut profile_data: StdHashMap<u32, ProfileData> = StdHashMap::new(); 
-    //let mut stack_tree = TreeNode { counters: StdHashMap::new(), name: String::from("root"), children: Vec::new() };
+    let mut stack_tree = TreeNode { counters: StdHashMap::new(), name: String::from("root"), children: Vec::new() };
 
     loop {
         while let Some(recv) = &perf_manager.event_rx.recv().await {
@@ -142,6 +142,8 @@ async fn main() -> anyhow::Result<()> {
                 else {
                     let trace = perf_manager.get_stack_fp(stackid)?;
                     debug!("generated stack trace from stackid {stackid}");
+
+                    stack_tree.update(perf_manager.symbolize_fp_trace(trace, recv.pid)?, recv.event_type);
                 }
             }
 
