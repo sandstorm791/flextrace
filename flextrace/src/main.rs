@@ -1,4 +1,4 @@
-use std::sync::{Arc, Mutex};
+use std::{sync::{Arc, Mutex}, time::Duration};
 
 use aya::programs::{PerfEvent, Program};
 use clap::Parser;
@@ -130,16 +130,19 @@ async fn main() -> anyhow::Result<()> {
     }
 
     let mut profile_data: StdHashMap<u32, ProfileData> = StdHashMap::new(); 
+    //let mut stack_tree = TreeNode { counters: StdHashMap::new(), name: String::from("root"), children: Vec::new() };
 
     loop {
-        if let Some(recv) = &perf_manager.event_rx.recv().await {
+        while let Some(recv) = &perf_manager.event_rx.recv().await {
 
             if let Some(stackid) = recv.stack_id {
                 if stackid < 0 {
-                    debug!("bpf_get_stackid() returned {stackid}!");
+                    debug!("bpf_get_stackid() returned {stackid}, dropping stack trace");
                 }
-
-                let trace = perf_manager.get_stack_fp(stackid)?;
+                else {
+                    let trace = perf_manager.get_stack_fp(stackid)?;
+                    debug!("generated stack trace from stackid {stackid}");
+                }
             }
 
             let event_type = recv.event_type;

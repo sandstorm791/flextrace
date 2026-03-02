@@ -1,10 +1,10 @@
-use std::{collections::HashMap as StdHashMap, sync::{Arc, Mutex}};
+use std::{collections::HashMap as StdHashMap};
 
 use anyhow::Result;
 use aya::{Ebpf, maps::{MapData, RingBuf, StackTraceMap, stack_trace::StackTrace}, programs::{PerfEvent, Program, perf_event::{PerfEventLink, PerfEventScope, SamplePolicy}}, util::online_cpus};
 use flextrace::{AyaHashMap, ringbuf_read};
 use flextrace_common::{FlextraceError, PerfEventType, PerfProcessConfig, PerfSample};
-use log::{debug, info, warn};
+use log::{debug, info};
 use tokio::{io::unix::AsyncFd, sync::mpsc::{self, Receiver}, task::JoinHandle};
 
 pub struct PerfManager {
@@ -27,6 +27,11 @@ pub struct ProfileData {
 
 impl PerfManager {
     pub fn new() -> Result<Self> {
+        let bytes = aya::include_bytes_aligned!(concat!(env!("OUT_DIR"), "/flextrace"));
+
+        let mut ebpf = aya::EbpfLoader::new().load(bytes)?;
+
+        /*
         let mut ebpf = aya::Ebpf::load(aya::include_bytes_aligned!(concat!(
             env!("OUT_DIR"),
             "/flextrace"
@@ -36,9 +41,13 @@ impl PerfManager {
             // This can happen if you remove all log statements from your eBPF program.
             warn!("failed to initialize eBPF logger: {e}");
         }
+        */        
+
+        for (name, _) in ebpf.maps() {
+        }
 
         // load ALL of the perf events into the kernel before we attach them so that the map fds know where to go
-        for (name, program) in ebpf.programs_mut() {
+        for (_, program) in ebpf.programs_mut() {
             match program {
                 Program::PerfEvent(p) => {
                     p.load()?;
@@ -137,7 +146,7 @@ impl PerfManager {
 
     pub fn list_events(&self) -> Vec<String> {
         let mut names: Vec<String> = Vec::new();
-        for (name, prog) in self.ebpf.programs() {
+        for (name, _) in self.ebpf.programs() {
             names.push(name.to_string());
         }
         names
