@@ -1,6 +1,6 @@
 use std::{sync::{Arc, Mutex}, time::Duration};
 
-use aya::programs::{PerfEvent, Program};
+use aya::{maps::stack, programs::{PerfEvent, Program}};
 use clap::Parser;
 use flextrace_common::{PERF_EVENT_VARIANTS, PerfEventType};
 //#[rustfmt::skip]
@@ -133,7 +133,7 @@ async fn main() -> anyhow::Result<()> {
     let mut stack_tree = TreeNode { counters: StdHashMap::new(), name: String::from("root"), children: Vec::new() };
 
     loop {
-        while let Some(recv) = &perf_manager.event_rx.recv().await {
+        if let Some(recv) = &perf_manager.event_rx.recv().await {
 
             if let Some(stackid) = recv.stack_id {
                 if stackid < 0 {

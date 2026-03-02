@@ -2,10 +2,11 @@ pub use std::collections::HashMap as StdHashMap;
 use aya::maps::{MapData, RingBuf};
 pub use aya::maps::HashMap as AyaHashMap;
 use flextrace_common::PerfEventType;
-use log::info;
+use log::{debug, info};
 use tokio::io::unix::AsyncFd;
 use anyhow::Result;
 
+#[derive(Debug)]
 pub struct TreeNode {
     // making all of this public so we can screw around with it later to actually analyze it
     pub counters: StdHashMap<PerfEventType, u32>,
@@ -17,11 +18,11 @@ impl TreeNode {
     // we assume that we are included in the elements to be updated but not in the trace vec
     // we also assume that the front of the trace vec is the head of the trace
     pub fn update(&mut self, mut trace: Vec<String>, event: PerfEventType) {
-        info!("calling update on a tree node");
+        debug!("calling update on a tree node");
         self.counters.entry(event).and_modify(|c| *c += 1 ).or_insert(1);
         
         if trace.len() == 0 {
-            info!("tree reached bottom of trace, returning...");
+            info!("trace update complete returning...");
             return;
         }
 
