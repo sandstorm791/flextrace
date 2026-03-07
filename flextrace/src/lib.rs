@@ -22,7 +22,7 @@ impl TreeNode {
         self.counters.entry(event).and_modify(|c| *c += 1 ).or_insert(1);
         
         if trace.len() == 0 {
-            info!("trace update complete returning...");
+            debug!("trace update complete returning...");
             return;
         }
 

@@ -196,10 +196,19 @@ impl PerfManager {
             match result {
                 Symbolized::Sym(Sym {
                     name,
+                    module,
                     ..
-                }) => { trace_parsed.push(name.to_string()) }
-                Symbolized::Unknown(..) =>  { trace_parsed.push(String::from("nosym? add additional info in the future")) }
+                }) => {
+                    // im sorry about this
+                    let namestr: String = module.unwrap().to_str().unwrap().to_string() + ":" + &name.to_string() + "(at)";
+                    trace_parsed.push(namestr);
+                }
+                Symbolized::Unknown(..) =>  { trace_parsed.push(String::from("nosym_")) }
             }
+        }
+
+        for i in 0..trace_parsed.len() {
+            trace_parsed[i].push_str(&ips[i].to_string());
         }
 
         Ok(trace_parsed)
