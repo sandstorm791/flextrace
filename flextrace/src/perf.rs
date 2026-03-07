@@ -43,10 +43,7 @@ impl PerfManager {
             // This can happen if you remove all log statements from your eBPF program.
             warn!("failed to initialize eBPF logger: {e}");
         }
-        */        
-
-        for (name, _) in ebpf.maps() {
-        }
+        */
 
         // load ALL of the perf events into the kernel before we attach them so that the map fds know where to go
         for (_, program) in ebpf.programs_mut() {
@@ -57,7 +54,7 @@ impl PerfManager {
                 _ => continue,
             }
         }
-        info!("perf events loaded into kernel");
+        debug!("perf events loaded into kernel");
 
         // access the maps
         let config_map = { 
@@ -72,7 +69,7 @@ impl PerfManager {
             let raw_map = ebpf.take_map("PERF_STACK_TRACES").unwrap();
             StackTraceMap::try_from(raw_map).unwrap()
         };
-        info!("maps initialized");
+        debug!("maps initialized");
 
         let mut ringbuf_fd = AsyncFd::new(event_map)?;
         let (perf_tx, perf_rx) = mpsc::channel::<PerfSample>(100);
@@ -84,7 +81,7 @@ impl PerfManager {
                 }
             }
         });
-        info!("event poller started");
+        debug!("event poller started");
 
         Ok(Self {
             ebpf: ebpf,
@@ -157,6 +154,7 @@ impl PerfManager {
 
     pub fn detach_event(&mut self, id: u64) {
         self.links.remove(&id);
+        debug!("detached perf event with id {id}");
     }
 
     pub fn update_perf_config(&mut self, filter_exclude: Vec<(u32, u32)>, stack_trace_fp: Vec<u32>) -> Result<()> {

@@ -1,10 +1,10 @@
-use std::{sync::{Arc, Mutex}, time::Duration};
+use std::{env, sync::{Arc, Mutex}, time::Duration};
 
 use aya::{maps::stack, programs::{PerfEvent, Program}};
 use clap::Parser;
 use flextrace_common::{PERF_EVENT_VARIANTS, PerfEventType};
 //#[rustfmt::skip]
-use log::{debug, info, warn};
+use log::{LevelFilter, debug, info, warn};
 
 mod perf;
 use perf::*;
@@ -32,7 +32,7 @@ struct Opt {
     #[arg(short = 'x', long, value_parser = parse_filter, help = "define events to ignore from certain processes: pid:event1,event2,event3\nor just the pid to drop everything from that process", default_value = "noarg")]
     filter_exclude: Vec<(u32, u32)>,
 
-    #[arg(short = 'f', long, help = "list processes to return stack traces from upon perf event hit based on frame pointers (program MUST be compiled without frame pointer omission)")]
+    #[arg(short = 'f', long, help = "specify processes to return stack traces from upon perf event hit based on frame pointers (program MUST be compiled without frame pointer omission)")]
     stack_trace_fp: Vec<u32>,
 
     #[arg(long, alias = "list", help = "list perf events supported by flextrace (remove the event_ when using as an argument)", default_value_t = false)]
@@ -88,7 +88,14 @@ fn parse_filter(filter: &str) -> anyhow::Result<(u32, u32)> {
 async fn main() -> anyhow::Result<()> {
     let opt = Opt::parse();
 
-    env_logger::init();
+    let loglevel: LevelFilter;
+
+    if opt.verbose { loglevel = LevelFilter::Debug; }
+    else { loglevel = LevelFilter::Info; }
+
+    env_logger::Builder::new()
+        .filter_level(loglevel)
+        .init();
     
     // (no need to bump the memlock rlimit cause we don't even support kernels that old)
     //include ebpf program at compile time, load at runtime
