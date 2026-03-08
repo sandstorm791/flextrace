@@ -1,10 +1,7 @@
-use std::{env, sync::{Arc, Mutex}, time::Duration};
-
-use aya::{maps::stack, programs::{PerfEvent, Program}};
 use clap::Parser;
 use flextrace_common::{PERF_EVENT_VARIANTS, PerfEventType};
 //#[rustfmt::skip]
-use log::{LevelFilter, debug, info, warn};
+use log::{LevelFilter, debug, info, trace};
 
 mod perf;
 use perf::*;
@@ -23,11 +20,14 @@ struct Opt {
     #[arg(short, long, default_value_t = false)]
     verbose: bool,
 
+    #[arg(short = 'V', long, default_value_t = false)]
+    super_verbose: bool,
+
     #[arg(short, long, value_name = "PATH", help = "path to output profiling data after completing execution")]
     out: Option<String>,
 
-    #[arg(short, long, value_name = "EVENTS", help = "list of perf events to profile", default_values_t = ["all".to_string()])]
-    events: Vec<String>,
+    #[arg(short, long, value_parser = parse_events, help = "list of perf events to profile with optional period, event:period", default_value = "all")]
+    events: Vec<(String, u64)>,
 
     #[arg(short = 'x', long, value_parser = parse_filter, help = "define events to ignore from certain processes: pid:event1,event2,event3\nor just the pid to drop everything from that process", default_value = "noarg")]
     filter_exclude: Vec<(u32, u32)>,
@@ -35,8 +35,8 @@ struct Opt {
     #[arg(short = 'f', long, help = "specify processes to return stack traces from upon perf event hit based on frame pointers (program MUST be compiled without frame pointer omission)")]
     stack_trace_fp: Vec<u32>,
 
-    #[arg(long, alias = "list", help = "list perf events supported by flextrace (remove the event_ when using as an argument)", default_value_t = false)]
-    list_events: bool,
+    #[arg(long, help = "list perf events supported by flextrace (remove the event_ when using as an argument)", default_value_t = false)]
+    list: bool,
 }
 
 // im pretty sure clap automaticlly handles the vec<> part and we
@@ -80,6 +80,19 @@ fn parse_filter(filter: &str) -> anyhow::Result<(u32, u32)> {
     else { Ok((filter.parse()?, u32::MAX as u32)) }
 }
 
+fn parse_events(filter: &str) -> anyhow::Result<(String, u64)> {
+    if filter == "all" {
+        return Ok(("all".to_string(), 0u64))
+    }
+
+    let event: (String, u64);
+    if let Some(colon_index) = filter.find(":") {
+        event = (filter[0..colon_index].to_string(), filter[colon_index + 1..].parse()?);
+    }
+    else { event = (filter.to_string(), 0u64); }
+
+    Ok(event)
+}
 
 // example:
 // fir -gvl fir.log -e cache_miss,branch_miss,context_switch,fs_event,random_thing -x node[fs_event] -x docker[fs_event]
@@ -90,7 +103,8 @@ async fn main() -> anyhow::Result<()> {
 
     let loglevel: LevelFilter;
 
-    if opt.verbose { loglevel = LevelFilter::Debug; }
+    if opt.super_verbose { loglevel = LevelFilter::Trace; }
+    else if opt.verbose { loglevel = LevelFilter::Debug; }
     else { loglevel = LevelFilter::Info; }
 
     env_logger::Builder::new()
@@ -102,11 +116,11 @@ async fn main() -> anyhow::Result<()> {
 
     let mut perf_manager = PerfManager::new()?;
 
-    if opt.list_events {
-        for name in perf_manager.list_events() {
+    if opt.list {
+        for name in &perf_manager.event_list {
             info!("{name}");
-            return Ok(())
         }
+        return Ok(())
     }
 
     // apply perf configuration to PERF_CONFIG map
@@ -119,14 +133,22 @@ async fn main() -> anyhow::Result<()> {
 
     // load and attach perf events
     for event_arg in opt.events {
-        if !(PerfEventType::from_str(&event_arg)? == PerfEventType::Any) {
-            let perf_event_enum = PerfEventType::from_str(&event_arg)?;
-            perf_manager.attach_event(perf_event_enum, None, None, nextid)?;
+        if !(PerfEventType::from_str(&event_arg.0)? == PerfEventType::Any) {
+            let perf_event_enum = PerfEventType::from_str(&event_arg.0)?;
+
+            let period_arg: Option<u64>;
+            match event_arg.1 {
+                0 => period_arg = None,
+                _ => period_arg = Some(event_arg.1),
+            }
+            perf_manager.attach_event(perf_event_enum, None, period_arg, nextid)?;
         }
         else {
             info!("using all perf events\n");
 
-            for name in perf_manager.list_events(){
+            let event_names = perf_manager.event_list.clone();
+
+            for name in event_names {
                 let perf_event_enum = PerfEventType::from_str(&name[6..].to_string())?;
                 perf_manager.attach_event(perf_event_enum, None, None, nextid)?;
                 nextid += 1;
@@ -148,7 +170,7 @@ async fn main() -> anyhow::Result<()> {
                 }
                 else {
                     let trace = perf_manager.get_stack_fp(stackid)?;
-                    debug!("generated stack trace from stackid {stackid}");
+                    trace!("generated stack trace from stackid {stackid}");
 
                     stack_tree.update(perf_manager.symbolize_fp_trace(trace, recv.pid)?, recv.event_type);
                 }

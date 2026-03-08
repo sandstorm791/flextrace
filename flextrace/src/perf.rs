@@ -1,12 +1,12 @@
 use std::{collections::HashMap as StdHashMap, num::NonZero};
 
 use anyhow::Result;
-use aya::{Ebpf, maps::{MapData, RingBuf, StackTraceMap, stack_trace::{StackFrame, StackTrace}}, programs::{PerfEvent, Program, perf_event::{PerfEventLink, PerfEventScope, SamplePolicy}}, util::online_cpus};
+use aya::{Ebpf, maps::{MapData, RingBuf, StackTraceMap, stack_trace::{StackTrace}}, programs::{PerfEvent, Program, perf_event::{PerfEventLink, PerfEventScope, SamplePolicy}}, util::online_cpus};
 use blazesym::{Pid, symbolize::{Input, Sym, Symbolized, Symbolizer, source::{Process, Source}}};
 use flextrace::{AyaHashMap, ringbuf_read};
 use flextrace_common::{FlextraceError, PerfEventType, PerfProcessConfig, PerfSample};
-use log::{debug, info};
-use tokio::{io::unix::AsyncFd, sync::mpsc::{self, Receiver}, task::JoinHandle};
+use log::{debug, error, info};
+use tokio::{io::unix::AsyncFd, sync::mpsc::{self, Receiver}};
 
 pub struct PerfManager {
     ebpf: Ebpf,
@@ -15,10 +15,10 @@ pub struct PerfManager {
     map_stack_traces: StackTraceMap<MapData>,
 
     pub event_rx: Receiver<PerfSample>,
-    event_polling_task: JoinHandle<anyhow::Result<()>>,
     symbolizer: Symbolizer,
 
     links: StdHashMap<u64, Vec<PerfEventLink>>,
+    pub event_list: Vec<String>,
 }
 
 pub struct ProfileData {
@@ -33,6 +33,7 @@ impl PerfManager {
 
         let mut ebpf = aya::EbpfLoader::new().load(bytes)?;
 
+        let mut prog_names: Vec<String> = Vec::new();
         /*
         let mut ebpf = aya::Ebpf::load(aya::include_bytes_aligned!(concat!(
             env!("OUT_DIR"),
@@ -46,10 +47,12 @@ impl PerfManager {
         */
 
         // load ALL of the perf events into the kernel before we attach them so that the map fds know where to go
-        for (_, program) in ebpf.programs_mut() {
+        for (name, program) in ebpf.programs_mut() {
             match program {
                 Program::PerfEvent(p) => {
                     p.load()?;
+                    debug!("loaded event {name}");
+                    prog_names.push(name.to_string());
                 },
                 _ => continue,
             }
@@ -74,10 +77,13 @@ impl PerfManager {
         let mut ringbuf_fd = AsyncFd::new(event_map)?;
         let (perf_tx, perf_rx) = mpsc::channel::<PerfSample>(100);
 
-        let polling_task = tokio::spawn(async move {
+        tokio::spawn(async move {
             loop {
                 for i in ringbuf_read::<PerfSample>(&mut ringbuf_fd).await.unwrap() {
-                    perf_tx.send(i).await.map_err(|_| anyhow::anyhow!("reciever closed?"))?;
+                    if let Err(_) = perf_tx.send(i).await {
+                        error!("ringbuf mpsc reciever dropped");
+                        return
+                    };
                 }
             }
         });
@@ -88,9 +94,9 @@ impl PerfManager {
             map_perf_config: config_map,
             map_stack_traces: stack_traces,
             links: StdHashMap::new(),
-            event_polling_task: polling_task,
             event_rx: perf_rx,
             symbolizer: Symbolizer::new(),
+            event_list: prog_names,
         })
     }
 
@@ -137,19 +143,10 @@ impl PerfManager {
                 },
             };
         }
-        info!("attached perf event {perf_ebpf_name} with id: {id} sampling period: {some_period} scope: {scope_info}");
+        debug!("attached perf event {perf_ebpf_name} with id: {id} sampling period: {some_period} scope: {scope_info}");
 
         self.links.insert(id, links);
-
         Ok(())
-    }
-
-    pub fn list_events(&self) -> Vec<String> {
-        let mut names: Vec<String> = Vec::new();
-        for (name, _) in self.ebpf.programs() {
-            names.push(name.to_string());
-        }
-        names
     }
 
     pub fn detach_event(&mut self, id: u64) {
