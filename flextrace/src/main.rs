@@ -1,3 +1,4 @@
+use aya::maps::stack;
 use clap::Parser;
 use flextrace_common::{PERF_EVENT_VARIANTS, PerfEventType};
 //#[rustfmt::skip]
@@ -160,6 +161,8 @@ async fn main() -> anyhow::Result<()> {
 
     let mut profile_data: StdHashMap<u32, ProfileData> = StdHashMap::new(); 
     let mut stack_tree = TreeNode { counters: StdHashMap::new(), name: String::from("root"), children: Vec::new() };
+    
+    let mut stacks = 0;
 
     loop {
         if let Some(recv) = &perf_manager.event_rx.recv().await {
@@ -173,6 +176,7 @@ async fn main() -> anyhow::Result<()> {
                     trace!("generated stack trace from stackid {stackid}");
 
                     stack_tree.update(perf_manager.symbolize_fp_trace(trace, recv.pid)?, recv.event_type);
+                    stacks += 1;
                 }
             }
 
@@ -191,6 +195,10 @@ async fn main() -> anyhow::Result<()> {
             // increment the counter for that event
             *profile_data.events.entry(event_type).or_insert(0) += 1;
             profile_data.gid = recv_gid;
+        }
+        if stacks >= 100 {
+            save_traces(opt.out.clone().unwrap(), stack_tree)?;
+            return Ok(())
         }
     }
 }

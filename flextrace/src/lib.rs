@@ -1,14 +1,17 @@
 pub use std::collections::HashMap as StdHashMap;
 use aya::maps::{MapData, RingBuf};
 pub use aya::maps::HashMap as AyaHashMap;
+use bincode_next::{Decode, Encode, config, decode_from_slice, encode_to_vec};
 use flextrace_common::PerfEventType;
 use log::trace;
 use tokio::io::unix::AsyncFd;
 use anyhow::Result;
 
-#[derive(Debug)]
+use std::fs::{write, read};
+
+
+#[derive(Debug, Encode, Decode)]
 pub struct TreeNode {
-    // making all of this public so we can screw around with it later to actually analyze it
     pub counters: StdHashMap<PerfEventType, u32>,
     pub name: String,
     pub children: Vec<TreeNode>,
@@ -77,4 +80,16 @@ pub async fn ringbuf_read<T: Copy>(fd: &mut AsyncFd<RingBuf<MapData>>) -> Result
 
         readguard.clear_ready();
         Ok(items)
+}
+
+pub fn save_traces(path: String, trace: TreeNode) -> Result<()> {
+    let ser = encode_to_vec(trace, config::standard())?;
+    write(path, ser)?;
+    Ok(())
+}
+
+pub fn read_traces_file(path: String) -> Result<TreeNode> {
+    let bytes = read(path)?;
+    let de: (TreeNode, usize) = decode_from_slice(&bytes, config::standard())?;
+    Ok(de.0)
 }
