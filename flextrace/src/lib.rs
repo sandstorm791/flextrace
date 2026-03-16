@@ -9,7 +9,6 @@ use anyhow::Result;
 
 use std::fs::{write, read};
 
-
 #[derive(Debug, Encode, Decode)]
 pub struct TreeNode {
     pub counters: StdHashMap<PerfEventType, u32>,

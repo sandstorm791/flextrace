@@ -1,6 +1,8 @@
-use aya::maps::stack;
+use std::time::Duration;
+
 use clap::Parser;
 use flextrace_common::{PERF_EVENT_VARIANTS, PerfEventType};
+use anyhow::Result;
 //#[rustfmt::skip]
 use log::{LevelFilter, debug, info, trace};
 
@@ -8,6 +10,7 @@ mod perf;
 use perf::*;
 
 use flextrace::*;
+use ratatui::{DefaultTerminal, crossterm::event};
 
 #[derive(Debug, Parser)]
 #[command(name = "flextrace", version = "0.1.0", about = "an efficient system profiler using ebpf", long_about = None, arg_required_else_help = false)]
@@ -38,6 +41,34 @@ struct Opt {
 
     #[arg(long, help = "list perf events supported by flextrace (remove the event_ when using as an argument)", default_value_t = false)]
     list: bool,
+}
+
+pub struct Tui {
+    nextid: u64,
+    perf_manager: PerfManager,
+    tree: TreeNode,
+    exit: bool,
+}
+
+impl Tui {
+    pub fn run(&mut self, terminal: &mut DefaultTerminal) -> anyhow::Result<()> {
+        while !self.exit {
+            terminal.draw(|frame| self.draw(frame))?;
+            self.poll_events()?;
+        }
+        Ok(())
+    }
+
+    pub fn poll_events(&mut self) -> anyhow::Result<()> {
+        match event::poll(Duration::from_millis(5)) {
+            Ok(true) => (),
+            Ok(false) => return Ok(()),
+            Err(e) => return Err(e.into()),
+        }
+        Ok(())
+    }
+
+    pub fn draw(&mut self,)
 }
 
 // im pretty sure clap automaticlly handles the vec<> part and we
