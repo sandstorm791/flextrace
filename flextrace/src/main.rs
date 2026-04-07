@@ -7,10 +7,12 @@ use anyhow::Result;
 use log::{LevelFilter, debug, info, trace};
 
 mod perf;
-use perf::*;
+mod tui;
 
+use perf::*;
+use tui::*;
 use flextrace::*;
-use ratatui::{DefaultTerminal, crossterm::event};
+//use ratatui::{DefaultTerminal, crossterm::event};
 
 #[derive(Debug, Parser)]
 #[command(name = "flextrace", version = "0.1.0", about = "an efficient system profiler using ebpf", long_about = None, arg_required_else_help = false)]
@@ -27,6 +29,9 @@ struct Opt {
     #[arg(short = 'V', long, default_value_t = false)]
     super_verbose: bool,
 
+    #[arg(short, long, default_value_t = 1000, help = "if you're doing stack traces this specifies how many stacks to sample before we write the results, if you enter 0 stack samples will be collected until the program quits")]
+    stack_samples: u64,
+
     #[arg(short, long, value_name = "PATH", help = "path to output profiling data after completing execution")]
     out: Option<String>,
 
@@ -41,34 +46,6 @@ struct Opt {
 
     #[arg(long, help = "list perf events supported by flextrace (remove the event_ when using as an argument)", default_value_t = false)]
     list: bool,
-}
-
-pub struct Tui {
-    nextid: u64,
-    perf_manager: PerfManager,
-    tree: TreeNode,
-    exit: bool,
-}
-
-impl Tui {
-    pub fn run(&mut self, terminal: &mut DefaultTerminal) -> anyhow::Result<()> {
-        while !self.exit {
-            terminal.draw(|frame| self.draw(frame))?;
-            self.poll_events()?;
-        }
-        Ok(())
-    }
-
-    pub fn poll_events(&mut self) -> anyhow::Result<()> {
-        match event::poll(Duration::from_millis(5)) {
-            Ok(true) => (),
-            Ok(false) => return Ok(()),
-            Err(e) => return Err(e.into()),
-        }
-        Ok(())
-    }
-
-    pub fn draw(&mut self,)
 }
 
 // im pretty sure clap automaticlly handles the vec<> part and we
@@ -227,7 +204,7 @@ async fn main() -> anyhow::Result<()> {
             *profile_data.events.entry(event_type).or_insert(0) += 1;
             profile_data.gid = recv_gid;
         }
-        if stacks >= 100 {
+        if stacks >= opt.samples {
             save_traces(opt.out.clone().unwrap(), stack_tree)?;
             return Ok(())
         }
