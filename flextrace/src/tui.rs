@@ -20,6 +20,7 @@ pub struct State {
     pub perf_manager: PerfManager,
     pub tree_root: TreeNode,
     pub focused_node: (),
+    pub focused_event: PerfEventType,
     pub profile_data: HashMap<u32, ProfileData>,
     pub screen: Screen,
     pub quitting: bool,
@@ -28,12 +29,13 @@ pub struct State {
 
 impl State {
     pub fn new(pm: PerfManager, options: Opt) -> Self {
-        let tree = TreeNode { counters: HashMap::new(), name: "root".to_string(), children: Vec::new(), focused_event: PerfEventType::None };
+        let tree = TreeNode { counters: HashMap::new(), name: "root".to_string(), children: Vec::new(), focused_event: PerfEventType::None, hits: 0};
         State {
             nextid: 0,
             perf_manager: pm,
             tree_root: tree,
             focused_node: (),
+            focused_event: PerfEventType::None,
             profile_data: HashMap::new(),
             screen: Screen::Main,
             quitting: false,
@@ -122,7 +124,9 @@ pub async fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut State) ->
 
 pub fn render(f: &mut Frame, app: &mut State) {
     match app.screen {
-        Screen::Main => f.render_widget(&app.tree_root, f.area()),
+                                        // lmao
+        Screen::Main => f.render_widget(&*app.tree_root.focus(app.focused_event), f.area()),
+        // in the future make this the focused tree node ^^^^^ this is temporary and does not allow traversal of the tree
         Screen::Exiting => {
             let span = Span::raw("are you sure you want to exit? (q)");
             f.render_widget(span, f.area());

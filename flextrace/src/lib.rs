@@ -15,6 +15,7 @@ pub struct TreeNode {
     pub name: String,
     pub children: Vec<TreeNode>,
     pub focused_event: PerfEventType,
+    pub hits: u32,
 }
 
 #[derive(Debug, Encode, Decode)]
@@ -31,11 +32,17 @@ pub struct SaveData {
 }
 
 impl TreeNode {
+    pub fn focus(&mut self, focus: PerfEventType) -> &mut Self {
+        self.focused_event = focus;
+        self
+    }
+
     // we assume that we are included in the elements to be updated but not in the trace vec
     // we also assume that the front of the trace vec is the head of the trace
     pub fn update(&mut self, mut trace: Vec<String>, event: PerfEventType) {
         trace!("calling update on a tree node");
         self.counters.entry(event).and_modify(|c| *c += 1 ).or_insert(1);
+        self.hits += 1;
         
         if trace.len() == 0 {
             trace!("trace update complete returning...");
@@ -60,6 +67,7 @@ impl TreeNode {
                 name: stack_highest.to_string(),
                 children: Vec::new(),
                 focused_event: PerfEventType::None,
+                hits: 0,
             }
         );
 
@@ -73,15 +81,15 @@ impl Widget for &TreeNode {
         let mut data: Vec<(&str, u64)> = Vec::new();
 
         for child in &self.children {
-            data.push((&child.name, *child.counters.get(&self.focused_event).unwrap_or(&0) as u64));
+            data.push((&child.name, *child.counters.get(&self.focused_event).unwrap_or(&child.hits) as u64));
         }
 
         let chart = BarChart::default()
             .block(Block::bordered().title(" stack traces "))
             .bar_width(1)
-            .bar_gap(1)
+            .bar_gap(5)
             .data(&data)
-            .max(11);
+            .max(7);
 
         chart.render(area, buf);
     }
