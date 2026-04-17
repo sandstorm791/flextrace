@@ -154,15 +154,15 @@ impl PerfManager {
         debug!("detached perf event with id {id}");
     }
 
-    pub fn update_perf_config(&mut self, filter_exclude: Vec<(u32, u32)>, stack_trace_fp: Vec<u32>) -> Result<()> {
+    pub fn update_perf_config(&mut self, filter_exclude: &Vec<(u32, u32)>, stack_trace_fp: &Vec<u32>) -> Result<()> {
         let mut config_temp: StdHashMap<u32, PerfProcessConfig> = StdHashMap::new();
 
         for (key, mask) in filter_exclude {
-            config_temp.insert(key, PerfProcessConfig(mask, false));
+            config_temp.insert(*key, PerfProcessConfig(*mask, false));
         }
 
         for key in stack_trace_fp {
-            config_temp.entry(key).and_modify(|config| config.1 = true).or_insert(PerfProcessConfig(0, true));
+            config_temp.entry(*key).and_modify(|config| config.1 = true).or_insert(PerfProcessConfig(0, true));
         }
 
         for (key, config) in config_temp {

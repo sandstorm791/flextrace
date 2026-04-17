@@ -4,6 +4,7 @@ pub use aya::maps::HashMap as AyaHashMap;
 use bincode_next::{Decode, Encode, config, decode_from_slice, encode_to_vec};
 use flextrace_common::PerfEventType;
 use log::trace;
+use ratatui::{buffer::Buffer, layout::Rect, widgets::{BarChart, Block, Widget}};
 use tokio::io::unix::AsyncFd;
 use anyhow::Result;
 
@@ -14,6 +15,7 @@ pub struct TreeNode {
     pub counters: StdHashMap<PerfEventType, u32>,
     pub name: String,
     pub children: Vec<TreeNode>,
+    pub focused_event: PerfEventType,
 }
 
 impl TreeNode {
@@ -45,10 +47,31 @@ impl TreeNode {
                 counters: StdHashMap::new(),
                 name: stack_highest.to_string(),
                 children: Vec::new(),
+                focused_event: PerfEventType::None,
             }
         );
 
         self.children[0].update(trace, event);
+    }
+}
+
+impl Widget for &TreeNode {
+    fn render(self, area: Rect, buf: &mut Buffer) {
+        // TODO: this is super inefficient to do every frame so fix this and add a cache
+        let mut data: Vec<(&str, u64)> = Vec::new();
+
+        for child in &self.children {
+            data.push((&child.name, *child.counters.get(&self.focused_event).unwrap_or(&0) as u64));
+        }
+
+        let chart = BarChart::default()
+            .block(Block::bordered().title(" stack traces "))
+            .bar_width(1)
+            .bar_gap(1)
+            .data(&data)
+            .max(11);
+
+        chart.render(area, buf);
     }
 }
 

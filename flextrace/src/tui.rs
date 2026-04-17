@@ -1,10 +1,12 @@
-use std::time::Duration;
+use std::{collections::HashMap, time::Duration};
 
 use crossterm::event::{Event, EventStream, KeyCode};
+use flextrace_common::PerfEventType;
 use futures::StreamExt;
 use flextrace::TreeNode;
-use ratatui::{Terminal, prelude::Backend};
-use crate::perf::PerfManager;
+use log::{debug, trace};
+use ratatui::{Frame, Terminal, prelude::Backend, text::{Span, Text}};
+use crate::{Opt, perf::{PerfManager, ProfileData}};
 
 const FRAMES_PER_SECOND: f32 = 60.0;
 
@@ -14,15 +16,27 @@ pub enum Screen {
 }
 
 pub struct State {
-    nextid: u64,
-    perf_manager: PerfManager,
-    tree: TreeNode,
-    exit: bool,
-    screen: Screen,
-    quitting: bool,
+    pub nextid: u64,
+    pub perf_manager: PerfManager,
+    pub tree: TreeNode,
+    pub profile_data: HashMap<u32, ProfileData>,
+    pub screen: Screen,
+    pub quitting: bool,
+    pub opt: Opt,
 }
 
 impl State {
+    pub fn new(pm: PerfManager, options: Opt) -> Self {
+        State {
+            nextid: 0,
+            perf_manager: pm,
+            tree: TreeNode { counters: HashMap::new(), name: "root".to_string(), children: Vec::new(), focused_event: PerfEventType::None },
+            profile_data: HashMap::new(),
+            screen: Screen::Main,
+            quitting: false,
+            opt: options,
+        }
+    }
     pub fn handle_event(&mut self, event: &Event) {
         if let Some(key) = event.as_key_press_event() {
             match &self.screen {
@@ -32,6 +46,7 @@ impl State {
                             self.screen = Screen::Exiting;
                             return;
                         }
+                        _ => (),
                     }
                 }
                 Screen::Exiting => {
@@ -63,15 +78,51 @@ pub async fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut State) ->
     loop {
         tokio::select! {
             Some(recv) = app.perf_manager.event_rx.recv() => {
-                todo!();
+                if let Some(stackid) = recv.stack_id {
+                    if stackid < 0 {
+                        debug!("bpf_get_stackid() returned {stackid}, dropping stack trace");
+                    }
+                    else {
+                        let trace = app.perf_manager.get_stack_fp(stackid)?;
+                        trace!("generated stack trace from stackid {stackid}");
+
+                        app.tree.update(app.perf_manager.symbolize_fp_trace(trace, recv.pid)?, recv.event_type);
+                    }
+                }
+
+                let event_type = recv.event_type;
+                let pid = recv.pid;
+                let recv_gid = recv.gid;
+
+                let profile_data_entry = app.profile_data.entry(pid).or_insert_with(||
+                    ProfileData {
+                        events: HashMap::new(),
+                        name: String::from_utf8_lossy(&recv.cmd).to_string(),
+                        gid: 0,
+                    }
+                );
+                
+                // increment the counter for that event
+                *profile_data_entry.events.entry(event_type).or_insert(0) += 1;
+                profile_data_entry.gid = recv_gid;
             },
             Some(Ok(event)) = events.next() => app.handle_event(&event),
-            _ = interval.tick() => { terminal.draw(|f| render(f, app))?; }
+            _ = interval.tick() => { terminal.draw(|f| render(f, app)); }
+        }
+
+        if app.quitting {
+            break;
         }
     }
-    Ok(())
+    return Ok(());
 }
 
-pub fn render() {
-    todo!()
+pub fn render(f: &mut Frame, app: &mut State) {
+    match app.screen {
+        Screen::Main => f.render_widget(&app.tree, f.area()),
+        Screen::Exiting => {
+            let span = Span::raw("are you sure you want to exit? (q)");
+            f.render_widget(span, f.area());
+        }
+    }
 }
