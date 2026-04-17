@@ -1,21 +1,33 @@
-pub use std::collections::HashMap as StdHashMap;
-use aya::maps::{MapData, RingBuf};
 pub use aya::maps::HashMap as AyaHashMap;
 use bincode_next::{Decode, Encode, config, decode_from_slice, encode_to_vec};
 use flextrace_common::PerfEventType;
 use log::trace;
 use ratatui::{buffer::Buffer, layout::Rect, widgets::{BarChart, Block, Widget}};
-use tokio::io::unix::AsyncFd;
 use anyhow::Result;
 
-use std::fs::{write, read};
+use std::{collections::HashMap, fs::{read, write}};
+
+mod perf;
 
 #[derive(Debug, Encode, Decode)]
 pub struct TreeNode {
-    pub counters: StdHashMap<PerfEventType, u32>,
+    pub counters: HashMap<PerfEventType, u32>,
     pub name: String,
     pub children: Vec<TreeNode>,
     pub focused_event: PerfEventType,
+}
+
+#[derive(Debug, Encode, Decode)]
+pub struct ProfileData {
+    pub name: String,
+    pub gid: u32,
+    pub events: HashMap<PerfEventType, u32>,
+}
+
+#[derive(Debug, Encode, Decode)]
+pub struct SaveData {
+    pub tree: TreeNode,
+    pub data: HashMap<u32, ProfileData>,
 }
 
 impl TreeNode {
@@ -44,7 +56,7 @@ impl TreeNode {
 
         self.children.push(
             TreeNode {
-                counters: StdHashMap::new(),
+                counters: HashMap::new(),
                 name: stack_highest.to_string(),
                 children: Vec::new(),
                 focused_event: PerfEventType::None,
@@ -75,43 +87,14 @@ impl Widget for &TreeNode {
     }
 }
 
-pub async fn ringbuf_read<T: Copy>(fd: &mut AsyncFd<RingBuf<MapData>>) -> Result<Vec<T>> {
-    let mut readguard = fd.readable_mut().await?;
-    let mut items: Vec<T> = Vec::new();
-
-    readguard.try_io(|inner|{
-        let mut count: usize = 0;
-
-        while let Some(event) = inner.get_mut().next() {
-            // reserve/submit api guarantees an unmangled struct
-            // but .next() still returns [u8] so we need to unsafe pointer cast
-
-            let event_struct = unsafe {
-                let ptr = event.as_ptr() as *const T;
-
-                *ptr
-            };
-
-            items.push(event_struct);
-            count += 1;
-
-        }
-
-        Ok(count)
-    }).unwrap().unwrap();
-
-        readguard.clear_ready();
-        Ok(items)
-}
-
-pub fn save_traces(path: String, trace: TreeNode) -> Result<()> {
-    let ser = encode_to_vec(trace, config::standard())?;
+pub fn save_traces(path: String, data: SaveData) -> Result<()> {
+    let ser = encode_to_vec(data, config::standard())?;
     write(path, ser)?;
     Ok(())
 }
 
-pub fn read_traces_file(path: String) -> Result<TreeNode> {
+pub fn read_traces_file(path: String) -> Result<SaveData> {
     let bytes = read(path)?;
-    let de: (TreeNode, usize) = decode_from_slice(&bytes, config::standard())?;
+    let de: (SaveData, usize) = decode_from_slice(&bytes, config::standard())?;
     Ok(de.0)
 }

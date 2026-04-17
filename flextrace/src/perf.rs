@@ -3,7 +3,7 @@ use std::{collections::HashMap as StdHashMap, num::NonZero};
 use anyhow::Result;
 use aya::{Ebpf, maps::{MapData, RingBuf, StackTraceMap, stack_trace::{StackTrace}}, programs::{PerfEvent, Program, perf_event::{PerfEventLink, PerfEventScope, SamplePolicy}}, util::online_cpus};
 use blazesym::{Pid, symbolize::{Input, Sym, Symbolized, Symbolizer, source::{Process, Source}}};
-use flextrace::{AyaHashMap, ringbuf_read};
+use aya::maps::HashMap as AyaHashMap;
 use flextrace_common::{FlextraceError, PerfEventType, PerfProcessConfig, PerfSample};
 use log::{debug, error, info};
 use tokio::{io::unix::AsyncFd, sync::mpsc::{self, Receiver}};
@@ -19,12 +19,6 @@ pub struct PerfManager {
 
     links: StdHashMap<u64, Vec<PerfEventLink>>,
     pub event_list: Vec<String>,
-}
-
-pub struct ProfileData {
-    pub name: String,
-    pub gid: u32,
-    pub events: StdHashMap<PerfEventType, u32>,
 }
 
 impl PerfManager {
@@ -208,4 +202,33 @@ impl PerfManager {
 
         Ok(trace_parsed)
     }
+}
+
+pub async fn ringbuf_read<T: Copy>(fd: &mut AsyncFd<RingBuf<MapData>>) -> Result<Vec<T>> {
+    let mut readguard = fd.readable_mut().await?;
+    let mut items: Vec<T> = Vec::new();
+
+    readguard.try_io(|inner|{
+        let mut count: usize = 0;
+
+        while let Some(event) = inner.get_mut().next() {
+            // reserve/submit api guarantees an unmangled struct
+            // but .next() still returns [u8] so we need to unsafe pointer cast
+
+            let event_struct = unsafe {
+                let ptr = event.as_ptr() as *const T;
+
+                *ptr
+            };
+
+            items.push(event_struct);
+            count += 1;
+
+        }
+
+        Ok(count)
+    }).unwrap().unwrap();
+
+        readguard.clear_ready();
+        Ok(items)
 }

@@ -3,10 +3,10 @@ use std::{collections::HashMap, time::Duration};
 use crossterm::event::{Event, EventStream, KeyCode};
 use flextrace_common::PerfEventType;
 use futures::StreamExt;
-use flextrace::TreeNode;
+use flextrace::{TreeNode, ProfileData};
 use log::{debug, trace};
 use ratatui::{Frame, Terminal, prelude::Backend, text::{Span, Text}};
-use crate::{Opt, perf::{PerfManager, ProfileData}};
+use crate::{Opt, perf::PerfManager};
 
 const FRAMES_PER_SECOND: f32 = 60.0;
 
@@ -18,7 +18,8 @@ pub enum Screen {
 pub struct State {
     pub nextid: u64,
     pub perf_manager: PerfManager,
-    pub tree: TreeNode,
+    pub tree_root: TreeNode,
+    pub focused_node: (),
     pub profile_data: HashMap<u32, ProfileData>,
     pub screen: Screen,
     pub quitting: bool,
@@ -27,10 +28,12 @@ pub struct State {
 
 impl State {
     pub fn new(pm: PerfManager, options: Opt) -> Self {
+        let tree = TreeNode { counters: HashMap::new(), name: "root".to_string(), children: Vec::new(), focused_event: PerfEventType::None };
         State {
             nextid: 0,
             perf_manager: pm,
-            tree: TreeNode { counters: HashMap::new(), name: "root".to_string(), children: Vec::new(), focused_event: PerfEventType::None },
+            tree_root: tree,
+            focused_node: (),
             profile_data: HashMap::new(),
             screen: Screen::Main,
             quitting: false,
@@ -86,7 +89,7 @@ pub async fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut State) ->
                         let trace = app.perf_manager.get_stack_fp(stackid)?;
                         trace!("generated stack trace from stackid {stackid}");
 
-                        app.tree.update(app.perf_manager.symbolize_fp_trace(trace, recv.pid)?, recv.event_type);
+                        app.tree_root.update(app.perf_manager.symbolize_fp_trace(trace, recv.pid)?, recv.event_type);
                     }
                 }
 
@@ -119,7 +122,7 @@ pub async fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut State) ->
 
 pub fn render(f: &mut Frame, app: &mut State) {
     match app.screen {
-        Screen::Main => f.render_widget(&app.tree, f.area()),
+        Screen::Main => f.render_widget(&app.tree_root, f.area()),
         Screen::Exiting => {
             let span = Span::raw("are you sure you want to exit? (q)");
             f.render_widget(span, f.area());

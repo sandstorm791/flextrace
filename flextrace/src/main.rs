@@ -2,6 +2,7 @@ use std::io;
 
 use clap::Parser;
 use crossterm::{event::{DisableMouseCapture, EnableMouseCapture}, execute, terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode}};
+use flextrace::{SaveData, save_traces};
 use flextrace_common::{PERF_EVENT_VARIANTS, PerfEventType};
 //#[rustfmt::skip]
 use log::{LevelFilter, info};
@@ -15,7 +16,7 @@ use ratatui::{Terminal, prelude::CrosstermBackend};
 use crate::tui::{State, run_app};
 //use ratatui::{DefaultTerminal, crossterm::event};
 
-#[derive(Debug, Parser)]
+#[derive(Debug, Parser, Clone)]
 #[command(name = "flextrace", version = "0.1.0", about = "an efficient system profiler using ebpf", long_about = None, arg_required_else_help = false)]
 struct Opt {
     //this way of taking in cli args is lowkey sketchy but idk i might change it later
@@ -173,7 +174,7 @@ async fn main() -> anyhow::Result<()> {
     let backend = CrosstermBackend::new(stderr);
     let mut terminal = Terminal::new(backend)?;
 
-    let mut app: State = State::new(perf_manager, opt);
+    let mut app: State = State::new(perf_manager, opt.clone());
 
     run_app(&mut terminal, &mut app).await?;
 
@@ -184,6 +185,11 @@ async fn main() -> anyhow::Result<()> {
         DisableMouseCapture
     )?;
     terminal.show_cursor()?;
+
+    if let Some(path) = opt.out {
+        let save_data = SaveData {tree: app.tree_root, data: app.profile_data};
+        save_traces(path, save_data)?;
+    }
 
     Ok(())
 }
