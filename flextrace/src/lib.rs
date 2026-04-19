@@ -2,10 +2,10 @@ pub use aya::maps::HashMap as AyaHashMap;
 use bincode_next::{Decode, Encode, config, decode_from_slice, encode_to_vec};
 use flextrace_common::PerfEventType;
 use log::trace;
-use ratatui::{buffer::Buffer, layout::Rect, widgets::{BarChart, Block, Widget}};
+use ratatui::{buffer::Buffer, layout::{Direction, Rect}, style::{Color, Style}, widgets::{Bar, BarChart, Block, Widget}};
 use anyhow::Result;
 
-use std::{collections::HashMap, fs::{read, write}};
+use std::{cmp::Reverse, collections::HashMap, fs::{read, write}};
 
 mod perf;
 
@@ -14,6 +14,8 @@ pub struct Tree {
     pub nodes: Vec<Node>,
     pub focused_event: PerfEventType,
     pub focused_node: usize,
+    pub selected_node: usize,
+    pub focused_children_sorted_cache: Vec<(String, u64, usize)>,
 }
 
 #[derive(Debug, Encode, Decode)]
@@ -66,22 +68,33 @@ impl Tree {
             self.nodes[current_index].counters.entry(event).and_modify(|c| *c += 1 ).or_insert(1);
         }
     }
+
+    pub fn update_sorted_cache(&mut self) {
+        let mut cache: Vec<(String, u64, usize)> = Vec::new();
+
+        for child in &self.nodes[self.focused_node].children {
+            cache.push((child.0[child.0.find(":").unwrap()+1..].to_string(), *self.nodes[*child.1].counters.get(&self.focused_event).unwrap_or(&self.nodes[*child.1].hits) as u64, *child.1))
+        } // this looks so funny im leaving it in 🥀
+
+        cache.sort_by_key(|item| Reverse(item.1));
+
+        self.focused_children_sorted_cache = cache;
+    }
 }
 
 impl Widget for &Tree {
     fn render(self, area: Rect, buf: &mut Buffer) {
-        // TODO: this is super inefficient to do every frame so fix this and add a cache
-        let mut data: Vec<(&str, u64)> = Vec::new();
+        let mut bars: Vec<Bar> = Vec::new();
 
-        for child in &self.nodes[self.focused_node].children {
-            data.push((&child.0[child.0.find(":").unwrap()+1..], *self.nodes[*child.1].counters.get(&self.focused_event).unwrap_or(&self.nodes[*child.1].hits) as u64))
+        for item in &self.focused_children_sorted_cache {
+            let mut bar = Bar::new(item.1).label(&*item.0);
+            if &self.focused_children_sorted_cache[self.selected_node].0 == &item.0 {
+                bar = bar.style(Color::Green);
+            }
+            bars.push(bar);
         }
 
-        let chart = BarChart::default()
-            .block(Block::bordered().title(" stack traces "))
-            .bar_width(1)
-            .bar_gap(5)
-            .data(&data);
+        let chart = BarChart::horizontal(bars);
 
         chart.render(area, buf);
     }

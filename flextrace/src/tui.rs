@@ -28,7 +28,7 @@ pub struct State {
 
 impl State {
     pub fn new(pm: PerfManager, options: Opt) -> Self {
-        let tree = Tree { nodes: vec![Node { counters: HashMap::new(), name: "root".to_string(), children: HashMap::new(), hits: 0, parent: 0 }], focused_event: PerfEventType::None, focused_node: 0 };
+        let tree = Tree { nodes: vec![Node { counters: HashMap::new(), name: "root".to_string(), children: HashMap::new(), hits: 0, parent: 0 }], focused_event: PerfEventType::None, focused_node: 0, selected_node: 0, focused_children_sorted_cache: Vec::new() };
         State {
             nextid: 0,
             perf_manager: pm,
@@ -47,6 +47,29 @@ impl State {
                     match key.code {
                         KeyCode::Char('q') => {
                             self.screen = Screen::Exiting;
+                            return;
+                        }
+                        KeyCode::Down => {
+                            if self.tree.selected_node + 1 < self.tree.focused_children_sorted_cache.len() {
+                                self.tree.selected_node += 1;
+                            }
+                            return;
+                        }
+                        KeyCode::Up => {
+                            if self.tree.selected_node > 0 {
+                                self.tree.selected_node -= 1;
+                            }
+                            return;
+                        }
+                        KeyCode::Right => {
+                            if self.tree.focused_children_sorted_cache.len() == 0 {return}
+                            self.tree.focused_node = self.tree.focused_children_sorted_cache[self.tree.selected_node].2;
+                            self.tree.update_sorted_cache();
+                            return;
+                        }
+                        KeyCode::Left => {
+                            self.tree.focused_node = self.tree.nodes[self.tree.focused_node].parent;
+                            self.tree.update_sorted_cache();
                             return;
                         }
                         _ => (),
@@ -90,6 +113,7 @@ pub async fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut State) ->
                         trace!("generated stack trace from stackid {stackid}");
 
                         app.tree.update(app.perf_manager.symbolize_fp_trace(trace, recv.pid)?, recv.event_type);
+                        app.tree.update_sorted_cache();
                     }
                 }
 
@@ -123,7 +147,9 @@ pub async fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut State) ->
 pub fn render(f: &mut Frame, app: &mut State) {
     match app.screen {
                                         // lmao
-        Screen::Main => f.render_widget(&app.tree, f.area()),
+        Screen::Main => {
+            f.render_widget(&app.tree, f.area())
+        },
         // in the future make this the focused tree node ^^^^^ this is temporary and does not allow traversal of the tree
         Screen::Exiting => {
             let span = Span::raw("are you sure you want to exit? (q)");

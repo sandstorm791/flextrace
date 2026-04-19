@@ -137,19 +137,18 @@ async fn main() -> anyhow::Result<()> {
         perf_manager.update_perf_config(&opt.filter_exclude, &opt.stack_trace_fp)?;
     }
 
-
     let mut nextid: u64 = 0;
 
     // load and attach perf events
     for event_arg in &opt.events {
-        if !(PerfEventType::from_str(&event_arg.0)? == PerfEventType::Any) {
-            let perf_event_enum = PerfEventType::from_str(&event_arg.0)?;
-
-            let period_arg: Option<u64>;
+        let period_arg: Option<u64>;
             match event_arg.1 {
                 0 => period_arg = None,
                 _ => period_arg = Some(event_arg.1),
             }
+
+        if !(PerfEventType::from_str(&event_arg.0)? == PerfEventType::Any) {
+            let perf_event_enum = PerfEventType::from_str(&event_arg.0)?;
             perf_manager.attach_event(perf_event_enum, None, period_arg, nextid)?;
         }
         else {
@@ -159,7 +158,7 @@ async fn main() -> anyhow::Result<()> {
 
             for name in event_names {
                 let perf_event_enum = PerfEventType::from_str(&name[6..].to_string())?;
-                perf_manager.attach_event(perf_event_enum, None, None, nextid)?;
+                perf_manager.attach_event(perf_event_enum, None, period_arg, nextid)?;
                 nextid += 1;
             }
             break;
