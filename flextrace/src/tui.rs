@@ -70,8 +70,10 @@ impl State {
                         }
                         KeyCode::Left => {
                             self.tree.focused_node = self.tree.nodes[self.tree.focused_node].parent;
-                            self.tree.selected_node = 0;
                             self.tree.update_sorted_cache();
+
+                            // in the future somehow make this the old focused node
+                            self.tree.selected_node = 0;
                             return;
                         }
                         _ => (),
