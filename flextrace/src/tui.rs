@@ -1,11 +1,11 @@
 use std::{collections::HashMap, time::Duration};
 
-use crossterm::event::{Event, EventStream, KeyCode};
+use crossterm::{event::{Event, EventStream, KeyCode}, style::Stylize};
 use flextrace_common::PerfEventType;
 use futures::StreamExt;
 use flextrace::{Node, ProfileData, Tree};
 use log::{debug, trace};
-use ratatui::{Frame, Terminal, prelude::Backend, text::{Span, Text}};
+use ratatui::{Frame, Terminal, layout::{Constraint, Direction, Layout}, prelude::Backend, style::Style, text::{Line, Span, Text}, widgets::{Block, Borders, Paragraph}};
 use crate::{Opt, perf::PerfManager};
 
 const FRAMES_PER_SECOND: f32 = 60.0;
@@ -148,9 +148,16 @@ pub async fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut State) ->
 
 pub fn render(f: &mut Frame, app: &mut State) {
     match app.screen {
-                                        // lmao
         Screen::Main => {
-            f.render_widget(&app.tree, f.area())
+            let layout_chunks = Layout::default().direction(Direction::Vertical).constraints([Constraint::Length(3), Constraint::Fill(1)]).split(f.area());
+            let title = Line::from(vec![
+                Span::styled("   flextrace pre alpha   ", Style::new().red()),
+                Span::styled("      stack trace tree            ", Style::new().cyan()),
+                Span::raw("focused function: ".to_owned() + &app.tree.nodes[app.tree.focused_node].name),
+            ]);
+
+            f.render_widget(title, layout_chunks[0]);
+            f.render_widget(&app.tree, layout_chunks[1]);
         },
         // in the future make this the focused tree node ^^^^^ this is temporary and does not allow traversal of the tree
         Screen::Exiting => {
