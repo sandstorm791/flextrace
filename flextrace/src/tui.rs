@@ -3,7 +3,7 @@ use std::{collections::HashMap, time::Duration};
 use crossterm::event::{Event, EventStream, KeyCode};
 use flextrace_common::PerfEventType;
 use futures::StreamExt;
-use flextrace::{TreeNode, ProfileData};
+use flextrace::{Node, ProfileData, Tree};
 use log::{debug, trace};
 use ratatui::{Frame, Terminal, prelude::Backend, text::{Span, Text}};
 use crate::{Opt, perf::PerfManager};
@@ -18,8 +18,7 @@ pub enum Screen {
 pub struct State {
     pub nextid: u64,
     pub perf_manager: PerfManager,
-    pub tree_root: TreeNode,
-    pub focused_node: (),
+    pub tree: Tree,
     pub focused_event: PerfEventType,
     pub profile_data: HashMap<u32, ProfileData>,
     pub screen: Screen,
@@ -29,12 +28,11 @@ pub struct State {
 
 impl State {
     pub fn new(pm: PerfManager, options: Opt) -> Self {
-        let tree = TreeNode { counters: HashMap::new(), name: "root".to_string(), children: Vec::new(), focused_event: PerfEventType::None, hits: 0};
+        let tree = Tree { nodes: vec![Node { counters: HashMap::new(), name: "root".to_string(), children: HashMap::new(), hits: 0, parent: 0 }], focused_event: PerfEventType::None, focused_node: 0 };
         State {
             nextid: 0,
             perf_manager: pm,
-            tree_root: tree,
-            focused_node: (),
+            tree: tree,
             focused_event: PerfEventType::None,
             profile_data: HashMap::new(),
             screen: Screen::Main,
@@ -91,7 +89,7 @@ pub async fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut State) ->
                         let trace = app.perf_manager.get_stack_fp(stackid)?;
                         trace!("generated stack trace from stackid {stackid}");
 
-                        app.tree_root.update(app.perf_manager.symbolize_fp_trace(trace, recv.pid)?, recv.event_type);
+                        app.tree.update(app.perf_manager.symbolize_fp_trace(trace, recv.pid)?, recv.event_type);
                     }
                 }
 
@@ -125,7 +123,7 @@ pub async fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut State) ->
 pub fn render(f: &mut Frame, app: &mut State) {
     match app.screen {
                                         // lmao
-        Screen::Main => f.render_widget(&*app.tree_root.focus(app.focused_event), f.area()),
+        Screen::Main => f.render_widget(&app.tree, f.area()),
         // in the future make this the focused tree node ^^^^^ this is temporary and does not allow traversal of the tree
         Screen::Exiting => {
             let span = Span::raw("are you sure you want to exit? (q)");

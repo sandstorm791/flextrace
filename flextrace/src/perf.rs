@@ -192,7 +192,7 @@ impl PerfManager {
                     let namestr: String = module.unwrap().to_str().unwrap().to_string() + ":" + &name.to_string() + "(at)";
                     trace_parsed.push(namestr);
                 }
-                Symbolized::Unknown(..) =>  { trace_parsed.push(String::from("nosym_")) }
+                Symbolized::Unknown(..) =>  { trace_parsed.push(String::from("nosym:")) }
             }
         }
 

@@ -10,12 +10,19 @@ use std::{collections::HashMap, fs::{read, write}};
 mod perf;
 
 #[derive(Debug, Encode, Decode)]
-pub struct TreeNode {
+pub struct Tree {
+    pub nodes: Vec<Node>,
+    pub focused_event: PerfEventType,
+    pub focused_node: usize,
+}
+
+#[derive(Debug, Encode, Decode)]
+pub struct Node {
     pub counters: HashMap<PerfEventType, u32>,
     pub name: String,
-    pub children: Vec<TreeNode>,
-    pub focused_event: PerfEventType,
+    pub children: HashMap<String, usize>,
     pub hits: u32,
+    pub parent: usize,
 }
 
 #[derive(Debug, Encode, Decode)]
@@ -27,69 +34,54 @@ pub struct ProfileData {
 
 #[derive(Debug, Encode, Decode)]
 pub struct SaveData {
-    pub tree: TreeNode,
+    pub tree: Tree,
     pub data: HashMap<u32, ProfileData>,
 }
 
-impl TreeNode {
-    pub fn focus(&mut self, focus: PerfEventType) -> &mut Self {
-        self.focused_event = focus;
-        self
-    }
+impl Tree {
+    pub fn update(&mut self, trace: Vec<String>, event: PerfEventType) {
+        trace!("updating tree with new trace");
+        let mut current_index = 0;
 
-    // we assume that we are included in the elements to be updated but not in the trace vec
-    // we also assume that the front of the trace vec is the head of the trace
-    pub fn update(&mut self, mut trace: Vec<String>, event: PerfEventType) {
-        trace!("calling update on a tree node");
-        self.counters.entry(event).and_modify(|c| *c += 1 ).or_insert(1);
-        self.hits += 1;
-        
-        if trace.len() == 0 {
-            trace!("trace update complete returning...");
-            return;
+        for name in trace {
+            let next_index = if let Some(&child_index) = self.nodes[current_index].children.get(&name) { child_index }
+            else {
+                trace!("adding new child to tree");
+                let new_child_index = self.nodes.len();
+                let new_node = Node {
+                    name: name.clone(),
+                    counters: HashMap::new(),
+                    hits: 0,
+                    children: HashMap::new(),
+                    parent: current_index,
+                };
+
+                self.nodes.push(new_node);
+                self.nodes[current_index].children.insert(name, new_child_index);
+                new_child_index
+            };
+
+            current_index = next_index;
+            self.nodes[current_index].hits += 1;
+            self.nodes[current_index].counters.entry(event).and_modify(|c| *c += 1 ).or_insert(1);
         }
-
-        let stack_highest = &trace[0].to_string();
-
-        trace.pop();
-
-        for node in &mut self.children {
-            if &node.name == stack_highest {
-                trace!("found a matching child for {stack_highest}!");
-                node.update(trace, event);
-                return;
-            }
-        }
-
-        self.children.push(
-            TreeNode {
-                counters: HashMap::new(),
-                name: stack_highest.to_string(),
-                children: Vec::new(),
-                focused_event: PerfEventType::None,
-                hits: 0,
-            }
-        );
-
-        self.children[0].update(trace, event);
     }
 }
 
-impl Widget for &TreeNode {
+impl Widget for &Tree {
     fn render(self, area: Rect, buf: &mut Buffer) {
         // TODO: this is super inefficient to do every frame so fix this and add a cache
         let mut data: Vec<(&str, u64)> = Vec::new();
 
-        for child in &self.children {
-            data.push((&child.name, *child.counters.get(&self.focused_event).unwrap_or(&child.hits) as u64));
+        for child in &self.nodes[self.focused_node].children {
+            data.push((&child.0[child.0.find(":").unwrap()+1..], *self.nodes[*child.1].counters.get(&self.focused_event).unwrap_or(&self.nodes[*child.1].hits) as u64))
         }
 
         let chart = BarChart::default()
             .block(Block::bordered().title(" stack traces "))
             .bar_width(1)
             .bar_gap(5)
-            .data(&data)
-            .max(7);
+            .data(&data);
 
         chart.render(area, buf);
     }

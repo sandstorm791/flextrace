@@ -187,7 +187,7 @@ async fn main() -> anyhow::Result<()> {
     terminal.show_cursor()?;
 
     if let Some(path) = opt.out {
-        let save_data = SaveData {tree: app.tree_root, data: app.profile_data};
+        let save_data = SaveData {tree: app.tree, data: app.profile_data};
         save_traces(path, save_data)?;
     }
 
