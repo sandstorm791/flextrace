@@ -64,11 +64,13 @@ impl State {
                         KeyCode::Right => {
                             if self.tree.focused_children_sorted_cache.len() == 0 {return}
                             self.tree.focused_node = self.tree.focused_children_sorted_cache[self.tree.selected_node].2;
+                            self.tree.selected_node = 0;
                             self.tree.update_sorted_cache();
                             return;
                         }
                         KeyCode::Left => {
                             self.tree.focused_node = self.tree.nodes[self.tree.focused_node].parent;
+                            self.tree.selected_node = 0;
                             self.tree.update_sorted_cache();
                             return;
                         }
