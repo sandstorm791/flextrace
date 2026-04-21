@@ -1,11 +1,14 @@
 #![cfg_attr(not(feature = "user"), no_std)]
 #[cfg(feature = "user")]
-use std::fmt::{self, Display};
-
+extern crate std;
+#[cfg(feature = "user")]
+use std::fmt::{self};
 #[cfg(feature = "user")]
 use aya::programs::perf_event::PerfEventConfig;
 #[cfg(feature = "user")]
 use aya::programs::perf_event::{HardwareEvent, SoftwareEvent};
+#[cfg(feature = "user")]
+use bincode_next::{Decode, Encode};
 
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 
@@ -55,6 +58,7 @@ pub struct PerfSample {
 // since we want to have one map for all types of perf events we'll use this internally
 // instead of the aya generated perf ids that are category dependent
 #[derive(Hash, TryFromPrimitive, IntoPrimitive, Default, Copy, Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "user", derive(Encode, Decode))]
 #[repr(u8)]
 pub enum PerfEventType {
     #[default]

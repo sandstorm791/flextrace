@@ -1,0 +1,595 @@
+[DEBUG aya::bpf] BPF Feature Detection: Features {
+        bpf_name: true,
+        bpf_probe_read_kernel: true,
+        bpf_perf_link: true,
+        bpf_global_data: true,
+        bpf_cookie: true,
+        cpumap_prog_id: true,
+        devmap_prog_id: true,
+        btf: Some(
+            BtfFeatures {
+                btf_func: true,
+                btf_func_global: true,
+                btf_datasec: true,
+                btf_datasec_zero: false,
+                btf_float: true,
+                btf_decl_tag: true,
+                btf_type_tag: true,
+                btf_enum64: true,
+            },
+        ),
+    }
+[DEBUG aya_obj::btf::btf] changing FUNC memcpy linkage to BTF_FUNC_STATIC
+[DEBUG aya_obj::btf::btf] changing FUNC memmove linkage to BTF_FUNC_STATIC
+[DEBUG aya_obj::btf::btf] changing FUNC memset linkage to BTF_FUNC_STATIC
+[DEBUG aya_obj::btf::btf] changing FUNC memcmp linkage to BTF_FUNC_STATIC
+[DEBUG aya_obj::btf::btf] [DATASEC] .rodata: fixup size to 82
+[DEBUG aya_obj::btf::btf] [DATASEC] .rodata: VAR AYA_LOG_LEVEL: fixup offset 81
+[DEBUG aya_obj::btf::btf] [DATASEC] license: fixup size to 13
+[DEBUG aya_obj::btf::btf] [DATASEC] license: VAR LICENSE: fixup offset 0
+[DEBUG aya_obj::btf::btf] [DATASEC] maps: fixup size to 112
+[DEBUG aya_obj::btf::btf] [DATASEC] maps: VAR PERF_CONFIG: fixup offset 0
+[DEBUG aya_obj::btf::btf] [DATASEC] maps: VAR PERF_EVENTS: fixup offset 28
+[DEBUG aya_obj::btf::btf] [DATASEC] maps: VAR PERF_STACK_TRACES: fixup offset 56
+[DEBUG aya_obj::btf::btf] [DATASEC] maps: VAR AYA_LOGS: fixup offset 84
+[DEBUG aya_obj::relocation] relocating map by section index 9, kind Rodata at insn 184 in section 2
+[DEBUG aya_obj::relocation] relocating map by symbol index Some(22), kind Maps at insn 120 in section 2
+[DEBUG aya_obj::relocation] relocating map by section index 8, kind Rodata at insn 188 in section 2
+[DEBUG aya_obj::relocation] relocating map by symbol index Some(19), kind Maps at insn 6 in section 2
+[DEBUG aya_obj::relocation] relocating map by symbol index Some(20), kind Maps at insn 20 in section 2
+[DEBUG aya_obj::relocation] relocating map by symbol index Some(24), kind Maps at insn 200 in section 2
+[DEBUG aya_obj::relocation] relocating map by section index 8, kind Rodata at insn 236 in section 2
+[DEBUG aya_obj::relocation] relocating map by section index 8, kind Rodata at insn 287 in section 2
+[DEBUG aya_obj::relocation] relocating map by section index 8, kind Rodata at insn 321 in section 2
+[DEBUG aya_obj::relocation] relocating map by section index 8, kind Rodata at insn 420 in section 2
+[DEBUG aya_obj::relocation] relocating program `event_branch_instructions` function `event_branch_instructions` size 4
+[DEBUG aya_obj::relocation] relocating call to callee address 0x0 in section 2 (relocation) at instruction 1
+[DEBUG aya_obj::relocation] callee is `_RNvCs8csOxRqAjaX_9flextrace17handle_perf_event`
+[DEBUG aya_obj::relocation] linked function `_RNvCs8csOxRqAjaX_9flextrace17handle_perf_event` at instruction 4
+[DEBUG aya_obj::relocation] relocating program `event_branch_instructions` function `_RNvCs8csOxRqAjaX_9flextrace17handle_perf_event` size 539
+[DEBUG aya_obj::relocation] relocating call to callee address 0x11f8 in section 2 (relocation) at instruction 46
+[DEBUG aya_obj::relocation] callee is `memset`
+[DEBUG aya_obj::relocation] linked function `memset` at instruction 543
+[DEBUG aya_obj::relocation] relocating program `event_branch_instructions` function `memset` size 8
+[DEBUG aya_obj::relocation] finished relocating program `event_branch_instructions` function `memset`
+[DEBUG aya_obj::relocation] callee `memset` is at ins 543, 496 from current instruction 46
+[DEBUG aya_obj::relocation] relocating call to callee address 0x11f8 in section 2 (relocation) at instruction 118
+[DEBUG aya_obj::relocation] callee is `memset`
+[DEBUG aya_obj::relocation] callee `memset` is at ins 543, 424 from current instruction 118
+[DEBUG aya_obj::relocation] relocating call to callee address 0x11f8 in section 2 (relocation) at instruction 123
+[DEBUG aya_obj::relocation] callee is `memset`
+[DEBUG aya_obj::relocation] callee `memset` is at ins 543, 419 from current instruction 123
+[DEBUG aya_obj::relocation] finished relocating program `event_branch_instructions` function `_RNvCs8csOxRqAjaX_9flextrace17handle_perf_event`
+[DEBUG aya_obj::relocation] callee `_RNvCs8csOxRqAjaX_9flextrace17handle_perf_event` is at ins 4, 2 from current instruction 1
+[DEBUG aya_obj::relocation] finished relocating program `event_branch_instructions` function `event_branch_instructions`
+[DEBUG aya_obj::relocation] relocating program `event_page_faults` function `event_page_faults` size 4
+[DEBUG aya_obj::relocation] relocating call to callee address 0x0 in section 2 (relocation) at instruction 1
+[DEBUG aya_obj::relocation] callee is `_RNvCs8csOxRqAjaX_9flextrace17handle_perf_event`
+[DEBUG aya_obj::relocation] linked function `_RNvCs8csOxRqAjaX_9flextrace17handle_perf_event` at instruction 4
+[DEBUG aya_obj::relocation] relocating program `event_page_faults` function `_RNvCs8csOxRqAjaX_9flextrace17handle_perf_event` size 539
+[DEBUG aya_obj::relocation] relocating call to callee address 0x11f8 in section 2 (relocation) at instruction 46
+[DEBUG aya_obj::relocation] callee is `memset`
+[DEBUG aya_obj::relocation] linked function `memset` at instruction 543
+[DEBUG aya_obj::relocation] relocating program `event_page_faults` function `memset` size 8
+[DEBUG aya_obj::relocation] finished relocating program `event_page_faults` function `memset`
+[DEBUG aya_obj::relocation] callee `memset` is at ins 543, 496 from current instruction 46
+[DEBUG aya_obj::relocation] relocating call to callee address 0x11f8 in section 2 (relocation) at instruction 118
+[DEBUG aya_obj::relocation] callee is `memset`
+[DEBUG aya_obj::relocation] callee `memset` is at ins 543, 424 from current instruction 118
+[DEBUG aya_obj::relocation] relocating call to callee address 0x11f8 in section 2 (relocation) at instruction 123
+[DEBUG aya_obj::relocation] callee is `memset`
+[DEBUG aya_obj::relocation] callee `memset` is at ins 543, 419 from current instruction 123
+[DEBUG aya_obj::relocation] finished relocating program `event_page_faults` function `_RNvCs8csOxRqAjaX_9flextrace17handle_perf_event`
+[DEBUG aya_obj::relocation] callee `_RNvCs8csOxRqAjaX_9flextrace17handle_perf_event` is at ins 4, 2 from current instruction 1
+[DEBUG aya_obj::relocation] finished relocating program `event_page_faults` function `event_page_faults`
+[DEBUG aya_obj::relocation] relocating program `event_cpu_cycles` function `event_cpu_cycles` size 4
+[DEBUG aya_obj::relocation] relocating call to callee address 0x0 in section 2 (relocation) at instruction 1
+[DEBUG aya_obj::relocation] callee is `_RNvCs8csOxRqAjaX_9flextrace17handle_perf_event`
+[DEBUG aya_obj::relocation] linked function `_RNvCs8csOxRqAjaX_9flextrace17handle_perf_event` at instruction 4
+[DEBUG aya_obj::relocation] relocating program `event_cpu_cycles` function `_RNvCs8csOxRqAjaX_9flextrace17handle_perf_event` size 539
+[DEBUG aya_obj::relocation] relocating call to callee address 0x11f8 in section 2 (relocation) at instruction 46
+[DEBUG aya_obj::relocation] callee is `memset`
+[DEBUG aya_obj::relocation] linked function `memset` at instruction 543
+[DEBUG aya_obj::relocation] relocating program `event_cpu_cycles` function `memset` size 8
+[DEBUG aya_obj::relocation] finished relocating program `event_cpu_cycles` function `memset`
+[DEBUG aya_obj::relocation] callee `memset` is at ins 543, 496 from current instruction 46
+[DEBUG aya_obj::relocation] relocating call to callee address 0x11f8 in section 2 (relocation) at instruction 118
+[DEBUG aya_obj::relocation] callee is `memset`
+[DEBUG aya_obj::relocation] callee `memset` is at ins 543, 424 from current instruction 118
+[DEBUG aya_obj::relocation] relocating call to callee address 0x11f8 in section 2 (relocation) at instruction 123
+[DEBUG aya_obj::relocation] callee is `memset`
+[DEBUG aya_obj::relocation] callee `memset` is at ins 543, 419 from current instruction 123
+[DEBUG aya_obj::relocation] finished relocating program `event_cpu_cycles` function `_RNvCs8csOxRqAjaX_9flextrace17handle_perf_event`
+[DEBUG aya_obj::relocation] callee `_RNvCs8csOxRqAjaX_9flextrace17handle_perf_event` is at ins 4, 2 from current instruction 1
+[DEBUG aya_obj::relocation] finished relocating program `event_cpu_cycles` function `event_cpu_cycles`
+[DEBUG aya_obj::relocation] relocating program `event_page_faults_min` function `event_page_faults_min` size 4
+[DEBUG aya_obj::relocation] relocating call to callee address 0x0 in section 2 (relocation) at instruction 1
+[DEBUG aya_obj::relocation] callee is `_RNvCs8csOxRqAjaX_9flextrace17handle_perf_event`
+[DEBUG aya_obj::relocation] linked function `_RNvCs8csOxRqAjaX_9flextrace17handle_perf_event` at instruction 4
+[DEBUG aya_obj::relocation] relocating program `event_page_faults_min` function `_RNvCs8csOxRqAjaX_9flextrace17handle_perf_event` size 539
+[DEBUG aya_obj::relocation] relocating call to callee address 0x11f8 in section 2 (relocation) at instruction 46
+[DEBUG aya_obj::relocation] callee is `memset`
+[DEBUG aya_obj::relocation] linked function `memset` at instruction 543
+[DEBUG aya_obj::relocation] relocating program `event_page_faults_min` function `memset` size 8
+[DEBUG aya_obj::relocation] finished relocating program `event_page_faults_min` function `memset`
+[DEBUG aya_obj::relocation] callee `memset` is at ins 543, 496 from current instruction 46
+[DEBUG aya_obj::relocation] relocating call to callee address 0x11f8 in section 2 (relocation) at instruction 118
+[DEBUG aya_obj::relocation] callee is `memset`
+[DEBUG aya_obj::relocation] callee `memset` is at ins 543, 424 from current instruction 118
+[DEBUG aya_obj::relocation] relocating call to callee address 0x11f8 in section 2 (relocation) at instruction 123
+[DEBUG aya_obj::relocation] callee is `memset`
+[DEBUG aya_obj::relocation] callee `memset` is at ins 543, 419 from current instruction 123
+[DEBUG aya_obj::relocation] finished relocating program `event_page_faults_min` function `_RNvCs8csOxRqAjaX_9flextrace17handle_perf_event`
+[DEBUG aya_obj::relocation] callee `_RNvCs8csOxRqAjaX_9flextrace17handle_perf_event` is at ins 4, 2 from current instruction 1
+[DEBUG aya_obj::relocation] finished relocating program `event_page_faults_min` function `event_page_faults_min`
+[DEBUG aya_obj::relocation] relocating program `event_stalled_cycles_backend` function `event_stalled_cycles_backend` size 4
+[DEBUG aya_obj::relocation] relocating call to callee address 0x0 in section 2 (relocation) at instruction 1
+[DEBUG aya_obj::relocation] callee is `_RNvCs8csOxRqAjaX_9flextrace17handle_perf_event`
+[DEBUG aya_obj::relocation] linked function `_RNvCs8csOxRqAjaX_9flextrace17handle_perf_event` at instruction 4
+[DEBUG aya_obj::relocation] relocating program `event_stalled_cycles_backend` function `_RNvCs8csOxRqAjaX_9flextrace17handle_perf_event` size 539
+[DEBUG aya_obj::relocation] relocating call to callee address 0x11f8 in section 2 (relocation) at instruction 46
+[DEBUG aya_obj::relocation] callee is `memset`
+[DEBUG aya_obj::relocation] linked function `memset` at instruction 543
+[DEBUG aya_obj::relocation] relocating program `event_stalled_cycles_backend` function `memset` size 8
+[DEBUG aya_obj::relocation] finished relocating program `event_stalled_cycles_backend` function `memset`
+[DEBUG aya_obj::relocation] callee `memset` is at ins 543, 496 from current instruction 46
+[DEBUG aya_obj::relocation] relocating call to callee address 0x11f8 in section 2 (relocation) at instruction 118
+[DEBUG aya_obj::relocation] callee is `memset`
+[DEBUG aya_obj::relocation] callee `memset` is at ins 543, 424 from current instruction 118
+[DEBUG aya_obj::relocation] relocating call to callee address 0x11f8 in section 2 (relocation) at instruction 123
+[DEBUG aya_obj::relocation] callee is `memset`
+[DEBUG aya_obj::relocation] callee `memset` is at ins 543, 419 from current instruction 123
+[DEBUG aya_obj::relocation] finished relocating program `event_stalled_cycles_backend` function `_RNvCs8csOxRqAjaX_9flextrace17handle_perf_event`
+[DEBUG aya_obj::relocation] callee `_RNvCs8csOxRqAjaX_9flextrace17handle_perf_event` is at ins 4, 2 from current instruction 1
+[DEBUG aya_obj::relocation] finished relocating program `event_stalled_cycles_backend` function `event_stalled_cycles_backend`
+[DEBUG aya_obj::relocation] relocating program `event_cpu_clock` function `event_cpu_clock` size 4
+[DEBUG aya_obj::relocation] relocating call to callee address 0x0 in section 2 (relocation) at instruction 1
+[DEBUG aya_obj::relocation] callee is `_RNvCs8csOxRqAjaX_9flextrace17handle_perf_event`
+[DEBUG aya_obj::relocation] linked function `_RNvCs8csOxRqAjaX_9flextrace17handle_perf_event` at instruction 4
+[DEBUG aya_obj::relocation] relocating program `event_cpu_clock` function `_RNvCs8csOxRqAjaX_9flextrace17handle_perf_event` size 539
+[DEBUG aya_obj::relocation] relocating call to callee address 0x11f8 in section 2 (relocation) at instruction 46
+[DEBUG aya_obj::relocation] callee is `memset`
+[DEBUG aya_obj::relocation] linked function `memset` at instruction 543
+[DEBUG aya_obj::relocation] relocating program `event_cpu_clock` function `memset` size 8
+[DEBUG aya_obj::relocation] finished relocating program `event_cpu_clock` function `memset`
+[DEBUG aya_obj::relocation] callee `memset` is at ins 543, 496 from current instruction 46
+[DEBUG aya_obj::relocation] relocating call to callee address 0x11f8 in section 2 (relocation) at instruction 118
+[DEBUG aya_obj::relocation] callee is `memset`
+[DEBUG aya_obj::relocation] callee `memset` is at ins 543, 424 from current instruction 118
+[DEBUG aya_obj::relocation] relocating call to callee address 0x11f8 in section 2 (relocation) at instruction 123
+[DEBUG aya_obj::relocation] callee is `memset`
+[DEBUG aya_obj::relocation] callee `memset` is at ins 543, 419 from current instruction 123
+[DEBUG aya_obj::relocation] finished relocating program `event_cpu_clock` function `_RNvCs8csOxRqAjaX_9flextrace17handle_perf_event`
+[DEBUG aya_obj::relocation] callee `_RNvCs8csOxRqAjaX_9flextrace17handle_perf_event` is at ins 4, 2 from current instruction 1
+[DEBUG aya_obj::relocation] finished relocating program `event_cpu_clock` function `event_cpu_clock`
+[DEBUG aya_obj::relocation] relocating program `event_page_faults_maj` function `event_page_faults_maj` size 4
+[DEBUG aya_obj::relocation] relocating call to callee address 0x0 in section 2 (relocation) at instruction 1
+[DEBUG aya_obj::relocation] callee is `_RNvCs8csOxRqAjaX_9flextrace17handle_perf_event`
+[DEBUG aya_obj::relocation] linked function `_RNvCs8csOxRqAjaX_9flextrace17handle_perf_event` at instruction 4
+[DEBUG aya_obj::relocation] relocating program `event_page_faults_maj` function `_RNvCs8csOxRqAjaX_9flextrace17handle_perf_event` size 539
+[DEBUG aya_obj::relocation] relocating call to callee address 0x11f8 in section 2 (relocation) at instruction 46
+[DEBUG aya_obj::relocation] callee is `memset`
+[DEBUG aya_obj::relocation] linked function `memset` at instruction 543
+[DEBUG aya_obj::relocation] relocating program `event_page_faults_maj` function `memset` size 8
+[DEBUG aya_obj::relocation] finished relocating program `event_page_faults_maj` function `memset`
+[DEBUG aya_obj::relocation] callee `memset` is at ins 543, 496 from current instruction 46
+[DEBUG aya_obj::relocation] relocating call to callee address 0x11f8 in section 2 (relocation) at instruction 118
+[DEBUG aya_obj::relocation] callee is `memset`
+[DEBUG aya_obj::relocation] callee `memset` is at ins 543, 424 from current instruction 118
+[DEBUG aya_obj::relocation] relocating call to callee address 0x11f8 in section 2 (relocation) at instruction 123
+[DEBUG aya_obj::relocation] callee is `memset`
+[DEBUG aya_obj::relocation] callee `memset` is at ins 543, 419 from current instruction 123
+[DEBUG aya_obj::relocation] finished relocating program `event_page_faults_maj` function `_RNvCs8csOxRqAjaX_9flextrace17handle_perf_event`
+[DEBUG aya_obj::relocation] callee `_RNvCs8csOxRqAjaX_9flextrace17handle_perf_event` is at ins 4, 2 from current instruction 1
+[DEBUG aya_obj::relocation] finished relocating program `event_page_faults_maj` function `event_page_faults_maj`
+[DEBUG aya_obj::relocation] relocating program `event_stalled_cycles_frontend` function `event_stalled_cycles_frontend` size 4
+[DEBUG aya_obj::relocation] relocating call to callee address 0x0 in section 2 (relocation) at instruction 1
+[DEBUG aya_obj::relocation] callee is `_RNvCs8csOxRqAjaX_9flextrace17handle_perf_event`
+[DEBUG aya_obj::relocation] linked function `_RNvCs8csOxRqAjaX_9flextrace17handle_perf_event` at instruction 4
+[DEBUG aya_obj::relocation] relocating program `event_stalled_cycles_frontend` function `_RNvCs8csOxRqAjaX_9flextrace17handle_perf_event` size 539
+[DEBUG aya_obj::relocation] relocating call to callee address 0x11f8 in section 2 (relocation) at instruction 46
+[DEBUG aya_obj::relocation] callee is `memset`
+[DEBUG aya_obj::relocation] linked function `memset` at instruction 543
+[DEBUG aya_obj::relocation] relocating program `event_stalled_cycles_frontend` function `memset` size 8
+[DEBUG aya_obj::relocation] finished relocating program `event_stalled_cycles_frontend` function `memset`
+[DEBUG aya_obj::relocation] callee `memset` is at ins 543, 496 from current instruction 46
+[DEBUG aya_obj::relocation] relocating call to callee address 0x11f8 in section 2 (relocation) at instruction 118
+[DEBUG aya_obj::relocation] callee is `memset`
+[DEBUG aya_obj::relocation] callee `memset` is at ins 543, 424 from current instruction 118
+[DEBUG aya_obj::relocation] relocating call to callee address 0x11f8 in section 2 (relocation) at instruction 123
+[DEBUG aya_obj::relocation] callee is `memset`
+[DEBUG aya_obj::relocation] callee `memset` is at ins 543, 419 from current instruction 123
+[DEBUG aya_obj::relocation] finished relocating program `event_stalled_cycles_frontend` function `_RNvCs8csOxRqAjaX_9flextrace17handle_perf_event`
+[DEBUG aya_obj::relocation] callee `_RNvCs8csOxRqAjaX_9flextrace17handle_perf_event` is at ins 4, 2 from current instruction 1
+[DEBUG aya_obj::relocation] finished relocating program `event_stalled_cycles_frontend` function `event_stalled_cycles_frontend`
+[DEBUG aya_obj::relocation] relocating program `event_task_clock` function `event_task_clock` size 4
+[DEBUG aya_obj::relocation] relocating call to callee address 0x0 in section 2 (relocation) at instruction 1
+[DEBUG aya_obj::relocation] callee is `_RNvCs8csOxRqAjaX_9flextrace17handle_perf_event`
+[DEBUG aya_obj::relocation] linked function `_RNvCs8csOxRqAjaX_9flextrace17handle_perf_event` at instruction 4
+[DEBUG aya_obj::relocation] relocating program `event_task_clock` function `_RNvCs8csOxRqAjaX_9flextrace17handle_perf_event` size 539
+[DEBUG aya_obj::relocation] relocating call to callee address 0x11f8 in section 2 (relocation) at instruction 46
+[DEBUG aya_obj::relocation] callee is `memset`
+[DEBUG aya_obj::relocation] linked function `memset` at instruction 543
+[DEBUG aya_obj::relocation] relocating program `event_task_clock` function `memset` size 8
+[DEBUG aya_obj::relocation] finished relocating program `event_task_clock` function `memset`
+[DEBUG aya_obj::relocation] callee `memset` is at ins 543, 496 from current instruction 46
+[DEBUG aya_obj::relocation] relocating call to callee address 0x11f8 in section 2 (relocation) at instruction 118
+[DEBUG aya_obj::relocation] callee is `memset`
+[DEBUG aya_obj::relocation] callee `memset` is at ins 543, 424 from current instruction 118
+[DEBUG aya_obj::relocation] relocating call to callee address 0x11f8 in section 2 (relocation) at instruction 123
+[DEBUG aya_obj::relocation] callee is `memset`
+[DEBUG aya_obj::relocation] callee `memset` is at ins 543, 419 from current instruction 123
+[DEBUG aya_obj::relocation] finished relocating program `event_task_clock` function `_RNvCs8csOxRqAjaX_9flextrace17handle_perf_event`
+[DEBUG aya_obj::relocation] callee `_RNvCs8csOxRqAjaX_9flextrace17handle_perf_event` is at ins 4, 2 from current instruction 1
+[DEBUG aya_obj::relocation] finished relocating program `event_task_clock` function `event_task_clock`
+[DEBUG aya_obj::relocation] relocating program `event_context_switches` function `event_context_switches` size 4
+[DEBUG aya_obj::relocation] relocating call to callee address 0x0 in section 2 (relocation) at instruction 1
+[DEBUG aya_obj::relocation] callee is `_RNvCs8csOxRqAjaX_9flextrace17handle_perf_event`
+[DEBUG aya_obj::relocation] linked function `_RNvCs8csOxRqAjaX_9flextrace17handle_perf_event` at instruction 4
+[DEBUG aya_obj::relocation] relocating program `event_context_switches` function `_RNvCs8csOxRqAjaX_9flextrace17handle_perf_event` size 539
+[DEBUG aya_obj::relocation] relocating call to callee address 0x11f8 in section 2 (relocation) at instruction 46
+[DEBUG aya_obj::relocation] callee is `memset`
+[DEBUG aya_obj::relocation] linked function `memset` at instruction 543
+[DEBUG aya_obj::relocation] relocating program `event_context_switches` function `memset` size 8
+[DEBUG aya_obj::relocation] finished relocating program `event_context_switches` function `memset`
+[DEBUG aya_obj::relocation] callee `memset` is at ins 543, 496 from current instruction 46
+[DEBUG aya_obj::relocation] relocating call to callee address 0x11f8 in section 2 (relocation) at instruction 118
+[DEBUG aya_obj::relocation] callee is `memset`
+[DEBUG aya_obj::relocation] callee `memset` is at ins 543, 424 from current instruction 118
+[DEBUG aya_obj::relocation] relocating call to callee address 0x11f8 in section 2 (relocation) at instruction 123
+[DEBUG aya_obj::relocation] callee is `memset`
+[DEBUG aya_obj::relocation] callee `memset` is at ins 543, 419 from current instruction 123
+[DEBUG aya_obj::relocation] finished relocating program `event_context_switches` function `_RNvCs8csOxRqAjaX_9flextrace17handle_perf_event`
+[DEBUG aya_obj::relocation] callee `_RNvCs8csOxRqAjaX_9flextrace17handle_perf_event` is at ins 4, 2 from current instruction 1
+[DEBUG aya_obj::relocation] finished relocating program `event_context_switches` function `event_context_switches`
+[DEBUG aya_obj::relocation] relocating program `event_instructions` function `event_instructions` size 4
+[DEBUG aya_obj::relocation] relocating call to callee address 0x0 in section 2 (relocation) at instruction 1
+[DEBUG aya_obj::relocation] callee is `_RNvCs8csOxRqAjaX_9flextrace17handle_perf_event`
+[DEBUG aya_obj::relocation] linked function `_RNvCs8csOxRqAjaX_9flextrace17handle_perf_event` at instruction 4
+[DEBUG aya_obj::relocation] relocating program `event_instructions` function `_RNvCs8csOxRqAjaX_9flextrace17handle_perf_event` size 539
+[DEBUG aya_obj::relocation] relocating call to callee address 0x11f8 in section 2 (relocation) at instruction 46
+[DEBUG aya_obj::relocation] callee is `memset`
+[DEBUG aya_obj::relocation] linked function `memset` at instruction 543
+[DEBUG aya_obj::relocation] relocating program `event_instructions` function `memset` size 8
+[DEBUG aya_obj::relocation] finished relocating program `event_instructions` function `memset`
+[DEBUG aya_obj::relocation] callee `memset` is at ins 543, 496 from current instruction 46
+[DEBUG aya_obj::relocation] relocating call to callee address 0x11f8 in section 2 (relocation) at instruction 118
+[DEBUG aya_obj::relocation] callee is `memset`
+[DEBUG aya_obj::relocation] callee `memset` is at ins 543, 424 from current instruction 118
+[DEBUG aya_obj::relocation] relocating call to callee address 0x11f8 in section 2 (relocation) at instruction 123
+[DEBUG aya_obj::relocation] callee is `memset`
+[DEBUG aya_obj::relocation] callee `memset` is at ins 543, 419 from current instruction 123
+[DEBUG aya_obj::relocation] finished relocating program `event_instructions` function `_RNvCs8csOxRqAjaX_9flextrace17handle_perf_event`
+[DEBUG aya_obj::relocation] callee `_RNvCs8csOxRqAjaX_9flextrace17handle_perf_event` is at ins 4, 2 from current instruction 1
+[DEBUG aya_obj::relocation] finished relocating program `event_instructions` function `event_instructions`
+[DEBUG aya_obj::relocation] relocating program `event_alignment_faults` function `event_alignment_faults` size 4
+[DEBUG aya_obj::relocation] relocating call to callee address 0x0 in section 2 (relocation) at instruction 1
+[DEBUG aya_obj::relocation] callee is `_RNvCs8csOxRqAjaX_9flextrace17handle_perf_event`
+[DEBUG aya_obj::relocation] linked function `_RNvCs8csOxRqAjaX_9flextrace17handle_perf_event` at instruction 4
+[DEBUG aya_obj::relocation] relocating program `event_alignment_faults` function `_RNvCs8csOxRqAjaX_9flextrace17handle_perf_event` size 539
+[DEBUG aya_obj::relocation] relocating call to callee address 0x11f8 in section 2 (relocation) at instruction 46
+[DEBUG aya_obj::relocation] callee is `memset`
+[DEBUG aya_obj::relocation] linked function `memset` at instruction 543
+[DEBUG aya_obj::relocation] relocating program `event_alignment_faults` function `memset` size 8
+[DEBUG aya_obj::relocation] finished relocating program `event_alignment_faults` function `memset`
+[DEBUG aya_obj::relocation] callee `memset` is at ins 543, 496 from current instruction 46
+[DEBUG aya_obj::relocation] relocating call to callee address 0x11f8 in section 2 (relocation) at instruction 118
+[DEBUG aya_obj::relocation] callee is `memset`
+[DEBUG aya_obj::relocation] callee `memset` is at ins 543, 424 from current instruction 118
+[DEBUG aya_obj::relocation] relocating call to callee address 0x11f8 in section 2 (relocation) at instruction 123
+[DEBUG aya_obj::relocation] callee is `memset`
+[DEBUG aya_obj::relocation] callee `memset` is at ins 543, 419 from current instruction 123
+[DEBUG aya_obj::relocation] finished relocating program `event_alignment_faults` function `_RNvCs8csOxRqAjaX_9flextrace17handle_perf_event`
+[DEBUG aya_obj::relocation] callee `_RNvCs8csOxRqAjaX_9flextrace17handle_perf_event` is at ins 4, 2 from current instruction 1
+[DEBUG aya_obj::relocation] finished relocating program `event_alignment_faults` function `event_alignment_faults`
+[DEBUG aya_obj::relocation] relocating program `event_bus_cycles` function `event_bus_cycles` size 4
+[DEBUG aya_obj::relocation] relocating call to callee address 0x0 in section 2 (relocation) at instruction 1
+[DEBUG aya_obj::relocation] callee is `_RNvCs8csOxRqAjaX_9flextrace17handle_perf_event`
+[DEBUG aya_obj::relocation] linked function `_RNvCs8csOxRqAjaX_9flextrace17handle_perf_event` at instruction 4
+[DEBUG aya_obj::relocation] relocating program `event_bus_cycles` function `_RNvCs8csOxRqAjaX_9flextrace17handle_perf_event` size 539
+[DEBUG aya_obj::relocation] relocating call to callee address 0x11f8 in section 2 (relocation) at instruction 46
+[DEBUG aya_obj::relocation] callee is `memset`
+[DEBUG aya_obj::relocation] linked function `memset` at instruction 543
+[DEBUG aya_obj::relocation] relocating program `event_bus_cycles` function `memset` size 8
+[DEBUG aya_obj::relocation] finished relocating program `event_bus_cycles` function `memset`
+[DEBUG aya_obj::relocation] callee `memset` is at ins 543, 496 from current instruction 46
+[DEBUG aya_obj::relocation] relocating call to callee address 0x11f8 in section 2 (relocation) at instruction 118
+[DEBUG aya_obj::relocation] callee is `memset`
+[DEBUG aya_obj::relocation] callee `memset` is at ins 543, 424 from current instruction 118
+[DEBUG aya_obj::relocation] relocating call to callee address 0x11f8 in section 2 (relocation) at instruction 123
+[DEBUG aya_obj::relocation] callee is `memset`
+[DEBUG aya_obj::relocation] callee `memset` is at ins 543, 419 from current instruction 123
+[DEBUG aya_obj::relocation] finished relocating program `event_bus_cycles` function `_RNvCs8csOxRqAjaX_9flextrace17handle_perf_event`
+[DEBUG aya_obj::relocation] callee `_RNvCs8csOxRqAjaX_9flextrace17handle_perf_event` is at ins 4, 2 from current instruction 1
+[DEBUG aya_obj::relocation] finished relocating program `event_bus_cycles` function `event_bus_cycles`
+[DEBUG aya_obj::relocation] relocating program `event_branch_misses` function `event_branch_misses` size 4
+[DEBUG aya_obj::relocation] relocating call to callee address 0x0 in section 2 (relocation) at instruction 1
+[DEBUG aya_obj::relocation] callee is `_RNvCs8csOxRqAjaX_9flextrace17handle_perf_event`
+[DEBUG aya_obj::relocation] linked function `_RNvCs8csOxRqAjaX_9flextrace17handle_perf_event` at instruction 4
+[DEBUG aya_obj::relocation] relocating program `event_branch_misses` function `_RNvCs8csOxRqAjaX_9flextrace17handle_perf_event` size 539
+[DEBUG aya_obj::relocation] relocating call to callee address 0x11f8 in section 2 (relocation) at instruction 46
+[DEBUG aya_obj::relocation] callee is `memset`
+[DEBUG aya_obj::relocation] linked function `memset` at instruction 543
+[DEBUG aya_obj::relocation] relocating program `event_branch_misses` function `memset` size 8
+[DEBUG aya_obj::relocation] finished relocating program `event_branch_misses` function `memset`
+[DEBUG aya_obj::relocation] callee `memset` is at ins 543, 496 from current instruction 46
+[DEBUG aya_obj::relocation] relocating call to callee address 0x11f8 in section 2 (relocation) at instruction 118
+[DEBUG aya_obj::relocation] callee is `memset`
+[DEBUG aya_obj::relocation] callee `memset` is at ins 543, 424 from current instruction 118
+[DEBUG aya_obj::relocation] relocating call to callee address 0x11f8 in section 2 (relocation) at instruction 123
+[DEBUG aya_obj::relocation] callee is `memset`
+[DEBUG aya_obj::relocation] callee `memset` is at ins 543, 419 from current instruction 123
+[DEBUG aya_obj::relocation] finished relocating program `event_branch_misses` function `_RNvCs8csOxRqAjaX_9flextrace17handle_perf_event`
+[DEBUG aya_obj::relocation] callee `_RNvCs8csOxRqAjaX_9flextrace17handle_perf_event` is at ins 4, 2 from current instruction 1
+[DEBUG aya_obj::relocation] finished relocating program `event_branch_misses` function `event_branch_misses`
+[DEBUG aya_obj::relocation] relocating program `event_ref_cpu_cycles` function `event_ref_cpu_cycles` size 4
+[DEBUG aya_obj::relocation] relocating call to callee address 0x0 in section 2 (relocation) at instruction 1
+[DEBUG aya_obj::relocation] callee is `_RNvCs8csOxRqAjaX_9flextrace17handle_perf_event`
+[DEBUG aya_obj::relocation] linked function `_RNvCs8csOxRqAjaX_9flextrace17handle_perf_event` at instruction 4
+[DEBUG aya_obj::relocation] relocating program `event_ref_cpu_cycles` function `_RNvCs8csOxRqAjaX_9flextrace17handle_perf_event` size 539
+[DEBUG aya_obj::relocation] relocating call to callee address 0x11f8 in section 2 (relocation) at instruction 46
+[DEBUG aya_obj::relocation] callee is `memset`
+[DEBUG aya_obj::relocation] linked function `memset` at instruction 543
+[DEBUG aya_obj::relocation] relocating program `event_ref_cpu_cycles` function `memset` size 8
+[DEBUG aya_obj::relocation] finished relocating program `event_ref_cpu_cycles` function `memset`
+[DEBUG aya_obj::relocation] callee `memset` is at ins 543, 496 from current instruction 46
+[DEBUG aya_obj::relocation] relocating call to callee address 0x11f8 in section 2 (relocation) at instruction 118
+[DEBUG aya_obj::relocation] callee is `memset`
+[DEBUG aya_obj::relocation] callee `memset` is at ins 543, 424 from current instruction 118
+[DEBUG aya_obj::relocation] relocating call to callee address 0x11f8 in section 2 (relocation) at instruction 123
+[DEBUG aya_obj::relocation] callee is `memset`
+[DEBUG aya_obj::relocation] callee `memset` is at ins 543, 419 from current instruction 123
+[DEBUG aya_obj::relocation] finished relocating program `event_ref_cpu_cycles` function `_RNvCs8csOxRqAjaX_9flextrace17handle_perf_event`
+[DEBUG aya_obj::relocation] callee `_RNvCs8csOxRqAjaX_9flextrace17handle_perf_event` is at ins 4, 2 from current instruction 1
+[DEBUG aya_obj::relocation] finished relocating program `event_ref_cpu_cycles` function `event_ref_cpu_cycles`
+[DEBUG aya_obj::relocation] relocating program `event_cgroup_switches` function `event_cgroup_switches` size 4
+[DEBUG aya_obj::relocation] relocating call to callee address 0x0 in section 2 (relocation) at instruction 1
+[DEBUG aya_obj::relocation] callee is `_RNvCs8csOxRqAjaX_9flextrace17handle_perf_event`
+[DEBUG aya_obj::relocation] linked function `_RNvCs8csOxRqAjaX_9flextrace17handle_perf_event` at instruction 4
+[DEBUG aya_obj::relocation] relocating program `event_cgroup_switches` function `_RNvCs8csOxRqAjaX_9flextrace17handle_perf_event` size 539
+[DEBUG aya_obj::relocation] relocating call to callee address 0x11f8 in section 2 (relocation) at instruction 46
+[DEBUG aya_obj::relocation] callee is `memset`
+[DEBUG aya_obj::relocation] linked function `memset` at instruction 543
+[DEBUG aya_obj::relocation] relocating program `event_cgroup_switches` function `memset` size 8
+[DEBUG aya_obj::relocation] finished relocating program `event_cgroup_switches` function `memset`
+[DEBUG aya_obj::relocation] callee `memset` is at ins 543, 496 from current instruction 46
+[DEBUG aya_obj::relocation] relocating call to callee address 0x11f8 in section 2 (relocation) at instruction 118
+[DEBUG aya_obj::relocation] callee is `memset`
+[DEBUG aya_obj::relocation] callee `memset` is at ins 543, 424 from current instruction 118
+[DEBUG aya_obj::relocation] relocating call to callee address 0x11f8 in section 2 (relocation) at instruction 123
+[DEBUG aya_obj::relocation] callee is `memset`
+[DEBUG aya_obj::relocation] callee `memset` is at ins 543, 419 from current instruction 123
+[DEBUG aya_obj::relocation] finished relocating program `event_cgroup_switches` function `_RNvCs8csOxRqAjaX_9flextrace17handle_perf_event`
+[DEBUG aya_obj::relocation] callee `_RNvCs8csOxRqAjaX_9flextrace17handle_perf_event` is at ins 4, 2 from current instruction 1
+[DEBUG aya_obj::relocation] finished relocating program `event_cgroup_switches` function `event_cgroup_switches`
+[DEBUG aya_obj::relocation] relocating program `event_cpu_migrations` function `event_cpu_migrations` size 4
+[DEBUG aya_obj::relocation] relocating call to callee address 0x0 in section 2 (relocation) at instruction 1
+[DEBUG aya_obj::relocation] callee is `_RNvCs8csOxRqAjaX_9flextrace17handle_perf_event`
+[DEBUG aya_obj::relocation] linked function `_RNvCs8csOxRqAjaX_9flextrace17handle_perf_event` at instruction 4
+[DEBUG aya_obj::relocation] relocating program `event_cpu_migrations` function `_RNvCs8csOxRqAjaX_9flextrace17handle_perf_event` size 539
+[DEBUG aya_obj::relocation] relocating call to callee address 0x11f8 in section 2 (relocation) at instruction 46
+[DEBUG aya_obj::relocation] callee is `memset`
+[DEBUG aya_obj::relocation] linked function `memset` at instruction 543
+[DEBUG aya_obj::relocation] relocating program `event_cpu_migrations` function `memset` size 8
+[DEBUG aya_obj::relocation] finished relocating program `event_cpu_migrations` function `memset`
+[DEBUG aya_obj::relocation] callee `memset` is at ins 543, 496 from current instruction 46
+[DEBUG aya_obj::relocation] relocating call to callee address 0x11f8 in section 2 (relocation) at instruction 118
+[DEBUG aya_obj::relocation] callee is `memset`
+[DEBUG aya_obj::relocation] callee `memset` is at ins 543, 424 from current instruction 118
+[DEBUG aya_obj::relocation] relocating call to callee address 0x11f8 in section 2 (relocation) at instruction 123
+[DEBUG aya_obj::relocation] callee is `memset`
+[DEBUG aya_obj::relocation] callee `memset` is at ins 543, 419 from current instruction 123
+[DEBUG aya_obj::relocation] finished relocating program `event_cpu_migrations` function `_RNvCs8csOxRqAjaX_9flextrace17handle_perf_event`
+[DEBUG aya_obj::relocation] callee `_RNvCs8csOxRqAjaX_9flextrace17handle_perf_event` is at ins 4, 2 from current instruction 1
+[DEBUG aya_obj::relocation] finished relocating program `event_cpu_migrations` function `event_cpu_migrations`
+[DEBUG aya_obj::relocation] relocating program `event_cache_miss` function `event_cache_miss` size 4
+[DEBUG aya_obj::relocation] relocating call to callee address 0x0 in section 2 (relocation) at instruction 1
+[DEBUG aya_obj::relocation] callee is `_RNvCs8csOxRqAjaX_9flextrace17handle_perf_event`
+[DEBUG aya_obj::relocation] linked function `_RNvCs8csOxRqAjaX_9flextrace17handle_perf_event` at instruction 4
+[DEBUG aya_obj::relocation] relocating program `event_cache_miss` function `_RNvCs8csOxRqAjaX_9flextrace17handle_perf_event` size 539
+[DEBUG aya_obj::relocation] relocating call to callee address 0x11f8 in section 2 (relocation) at instruction 46
+[DEBUG aya_obj::relocation] callee is `memset`
+[DEBUG aya_obj::relocation] linked function `memset` at instruction 543
+[DEBUG aya_obj::relocation] relocating program `event_cache_miss` function `memset` size 8
+[DEBUG aya_obj::relocation] finished relocating program `event_cache_miss` function `memset`
+[DEBUG aya_obj::relocation] callee `memset` is at ins 543, 496 from current instruction 46
+[DEBUG aya_obj::relocation] relocating call to callee address 0x11f8 in section 2 (relocation) at instruction 118
+[DEBUG aya_obj::relocation] callee is `memset`
+[DEBUG aya_obj::relocation] callee `memset` is at ins 543, 424 from current instruction 118
+[DEBUG aya_obj::relocation] relocating call to callee address 0x11f8 in section 2 (relocation) at instruction 123
+[DEBUG aya_obj::relocation] callee is `memset`
+[DEBUG aya_obj::relocation] callee `memset` is at ins 543, 419 from current instruction 123
+[DEBUG aya_obj::relocation] finished relocating program `event_cache_miss` function `_RNvCs8csOxRqAjaX_9flextrace17handle_perf_event`
+[DEBUG aya_obj::relocation] callee `_RNvCs8csOxRqAjaX_9flextrace17handle_perf_event` is at ins 4, 2 from current instruction 1
+[DEBUG aya_obj::relocation] finished relocating program `event_cache_miss` function `event_cache_miss`
+[DEBUG aya_obj::relocation] relocating program `event_cache_references` function `event_cache_references` size 4
+[DEBUG aya_obj::relocation] relocating call to callee address 0x0 in section 2 (relocation) at instruction 1
+[DEBUG aya_obj::relocation] callee is `_RNvCs8csOxRqAjaX_9flextrace17handle_perf_event`
+[DEBUG aya_obj::relocation] linked function `_RNvCs8csOxRqAjaX_9flextrace17handle_perf_event` at instruction 4
+[DEBUG aya_obj::relocation] relocating program `event_cache_references` function `_RNvCs8csOxRqAjaX_9flextrace17handle_perf_event` size 539
+[DEBUG aya_obj::relocation] relocating call to callee address 0x11f8 in section 2 (relocation) at instruction 46
+[DEBUG aya_obj::relocation] callee is `memset`
+[DEBUG aya_obj::relocation] linked function `memset` at instruction 543
+[DEBUG aya_obj::relocation] relocating program `event_cache_references` function `memset` size 8
+[DEBUG aya_obj::relocation] finished relocating program `event_cache_references` function `memset`
+[DEBUG aya_obj::relocation] callee `memset` is at ins 543, 496 from current instruction 46
+[DEBUG aya_obj::relocation] relocating call to callee address 0x11f8 in section 2 (relocation) at instruction 118
+[DEBUG aya_obj::relocation] callee is `memset`
+[DEBUG aya_obj::relocation] callee `memset` is at ins 543, 424 from current instruction 118
+[DEBUG aya_obj::relocation] relocating call to callee address 0x11f8 in section 2 (relocation) at instruction 123
+[DEBUG aya_obj::relocation] callee is `memset`
+[DEBUG aya_obj::relocation] callee `memset` is at ins 543, 419 from current instruction 123
+[DEBUG aya_obj::relocation] finished relocating program `event_cache_references` function `_RNvCs8csOxRqAjaX_9flextrace17handle_perf_event`
+[DEBUG aya_obj::relocation] callee `_RNvCs8csOxRqAjaX_9flextrace17handle_perf_event` is at ins 4, 2 from current instruction 1
+[DEBUG aya_obj::relocation] finished relocating program `event_cache_references` function `event_cache_references`
+[DEBUG flextrace::perf] loaded event event_instructions
+[DEBUG flextrace::perf] loaded event event_page_faults_maj
+[DEBUG flextrace::perf] loaded event event_ref_cpu_cycles
+[DEBUG flextrace::perf] loaded event event_task_clock
+[DEBUG flextrace::perf] loaded event event_cpu_cycles
+[DEBUG flextrace::perf] loaded event event_bus_cycles
+[DEBUG flextrace::perf] loaded event event_cpu_clock
+[DEBUG flextrace::perf] loaded event event_context_switches
+[DEBUG flextrace::perf] loaded event event_cpu_migrations
+[DEBUG flextrace::perf] loaded event event_cgroup_switches
+[DEBUG flextrace::perf] loaded event event_page_faults_min
+[DEBUG flextrace::perf] loaded event event_alignment_faults
+[DEBUG flextrace::perf] loaded event event_page_faults
+[DEBUG flextrace::perf] loaded event event_cache_miss
+[DEBUG flextrace::perf] loaded event event_branch_instructions
+[DEBUG flextrace::perf] loaded event event_cache_references
+[DEBUG flextrace::perf] loaded event event_stalled_cycles_backend
+[DEBUG flextrace::perf] loaded event event_stalled_cycles_frontend
+[DEBUG flextrace::perf] loaded event event_branch_misses
+[DEBUG flextrace::perf] perf events loaded into kernel
+[DEBUG flextrace::perf] maps initialized
+[TRACE mio::poll] registering event source with poller: token=Token(93944885881600), interests=READABLE | WRITABLE
+[DEBUG flextrace::perf] event poller started
+[DEBUG flextrace::perf] config for pid 1: fp stack traces: true, mask: 0
+[DEBUG flextrace::perf] config for pid 0: fp stack traces: false, mask: 0
+[INFO  flextrace] using all perf events
+    
+[DEBUG flextrace::perf] attached perf event event_instructions with id: 0 sampling period: 100000 scope: all processes
+[DEBUG flextrace::perf] attached perf event event_page_faults_maj with id: 1 sampling period: 100000 scope: all processes
+[DEBUG flextrace::perf] attached perf event event_ref_cpu_cycles with id: 2 sampling period: 100000 scope: all processes
+[DEBUG flextrace::perf] attached perf event event_task_clock with id: 3 sampling period: 100000 scope: all processes
+[DEBUG flextrace::perf] attached perf event event_cpu_cycles with id: 4 sampling period: 100000 scope: all processes
+[DEBUG flextrace::perf] attached perf event event_bus_cycles with id: 5 sampling period: 100000 scope: all processes
+[DEBUG flextrace::perf] attached perf event event_cpu_clock with id: 6 sampling period: 100000 scope: all processes
+[DEBUG flextrace::perf] attached perf event event_context_switches with id: 7 sampling period: 100000 scope: all processes
+[DEBUG flextrace::perf] attached perf event event_cpu_migrations with id: 8 sampling period: 100000 scope: all processes
+[DEBUG flextrace::perf] attached perf event event_cgroup_switches with id: 9 sampling period: 100000 scope: all processes
+[DEBUG flextrace::perf] attached perf event event_page_faults_min with id: 10 sampling period: 100000 scope: all processes
+[DEBUG flextrace::perf] attached perf event event_alignment_faults with id: 11 sampling period: 100000 scope: all processes
+[DEBUG flextrace::perf] attached perf event event_page_faults with id: 12 sampling period: 100000 scope: all processes
+[DEBUG flextrace::perf] attached perf event event_cache_miss with id: 13 sampling period: 100000 scope: all processes
+[DEBUG flextrace::perf] attached perf event event_branch_instructions with id: 14 sampling period: 100000 scope: all processes
+[DEBUG flextrace::perf] attached perf event event_cache_references with id: 15 sampling period: 100000 scope: all processes
+[INFO  flextrace::perf] system does not support perf event event_stalled_cycles_backend
+[DEBUG flextrace::perf] attached perf event event_stalled_cycles_backend with id: 16 sampling period: 100000 scope: all processes
+[INFO  flextrace::perf] system does not support perf event event_stalled_cycles_frontend
+[DEBUG flextrace::perf] attached perf event event_stalled_cycles_frontend with id: 17 sampling period: 100000 scope: all processes
+[DEBUG flextrace::perf] attached perf event event_branch_misses with id: 18 sampling period: 100000 scope: all processes
+[TRACE mio::poll] registering event source with poller: token=Token(0), interests=READABLE
+[TRACE mio::poll] registering event source with poller: token=Token(1), interests=READABLE
+[TRACE flextrace::tui] generated stack trace from stackid 4516
+[TRACE flextrace] calling update on a tree node
+[TRACE flextrace] calling update on a tree node
+[TRACE flextrace] calling update on a tree node
+[TRACE flextrace] trace update complete returning...
+[TRACE flextrace::tui] generated stack trace from stackid 5988
+[TRACE flextrace] calling update on a tree node
+[TRACE flextrace] calling update on a tree node
+[TRACE flextrace] trace update complete returning...
+[TRACE flextrace::tui] generated stack trace from stackid 5695
+[TRACE flextrace] calling update on a tree node
+[TRACE flextrace] calling update on a tree node
+[TRACE flextrace] trace update complete returning...
+[TRACE flextrace::tui] generated stack trace from stackid 2991
+[TRACE flextrace] calling update on a tree node
+[TRACE flextrace] calling update on a tree node
+[TRACE flextrace] calling update on a tree node
+[TRACE flextrace] trace update complete returning...
+[TRACE flextrace::tui] generated stack trace from stackid 6342
+[TRACE flextrace] calling update on a tree node
+[TRACE flextrace] calling update on a tree node
+[TRACE flextrace] trace update complete returning...
+[TRACE flextrace::tui] generated stack trace from stackid 8136
+[TRACE flextrace] calling update on a tree node
+[TRACE flextrace] calling update on a tree node
+[TRACE flextrace] calling update on a tree node
+[TRACE flextrace] trace update complete returning...
+[TRACE flextrace::tui] generated stack trace from stackid 2943
+[TRACE flextrace] calling update on a tree node
+[TRACE flextrace] calling update on a tree node
+[TRACE flextrace] trace update complete returning...
+[TRACE flextrace::tui] generated stack trace from stackid 777
+[TRACE flextrace] calling update on a tree node
+[TRACE flextrace] calling update on a tree node
+[TRACE flextrace] calling update on a tree node
+[TRACE flextrace] calling update on a tree node
+[TRACE flextrace] trace update complete returning...
+[TRACE flextrace::tui] generated stack trace from stackid 777
+[TRACE flextrace] calling update on a tree node
+[TRACE flextrace] found a matching child for /usr/lib64/systemd/libsystemd-shared-257.so:sd_json_variant_by_index(at)140025782918736!
+[TRACE flextrace] calling update on a tree node
+[TRACE flextrace] calling update on a tree node
+[TRACE flextrace] calling update on a tree node
+[TRACE flextrace] trace update complete returning...
+[TRACE flextrace::tui] generated stack trace from stackid 2537
+[TRACE flextrace] calling update on a tree node
+[TRACE flextrace] calling update on a tree node
+[TRACE flextrace] calling update on a tree node
+[TRACE flextrace] trace update complete returning...
+[TRACE flextrace::tui] generated stack trace from stackid 599
+[TRACE flextrace] calling update on a tree node
+[TRACE flextrace] calling update on a tree node
+[TRACE flextrace] trace update complete returning...
+[TRACE flextrace::tui] generated stack trace from stackid 4516
+[TRACE flextrace] calling update on a tree node
+[TRACE flextrace] found a matching child for /usr/lib64/libc.so.6:epoll_wait(at)140025779033511!
+[TRACE flextrace] calling update on a tree node
+[TRACE flextrace] found a matching child for /usr/lib64/libc.so.6:epoll_wait(at)140025779033511!
+[TRACE flextrace] calling update on a tree node
+[TRACE flextrace] trace update complete returning...
+[TRACE flextrace::tui] generated stack trace from stackid 1939
+[TRACE flextrace] calling update on a tree node
+[TRACE flextrace] calling update on a tree node
+[TRACE flextrace] calling update on a tree node
+[TRACE flextrace] trace update complete returning...
+[TRACE flextrace::tui] generated stack trace from stackid 6758
+[TRACE flextrace] calling update on a tree node
+[TRACE flextrace] calling update on a tree node
+[TRACE flextrace] trace update complete returning...
+[TRACE flextrace::tui] generated stack trace from stackid 6758
+[TRACE flextrace] calling update on a tree node
+[TRACE flextrace] found a matching child for /usr/lib64/systemd/libsystemd-shared-257.so:getpid_cached(at)140025782163849!
+[TRACE flextrace] calling update on a tree node
+[TRACE flextrace] trace update complete returning...
+[TRACE flextrace::tui] generated stack trace from stackid 6758
+[TRACE flextrace] calling update on a tree node
+[TRACE flextrace] found a matching child for /usr/lib64/systemd/libsystemd-shared-257.so:getpid_cached(at)140025782163849!
+[TRACE flextrace] calling update on a tree node
+[TRACE flextrace] trace update complete returning...
+[TRACE flextrace::tui] generated stack trace from stackid 7321
+[TRACE flextrace] calling update on a tree node
+[TRACE flextrace] calling update on a tree node
+[TRACE flextrace] trace update complete returning...
+[TRACE flextrace::tui] generated stack trace from stackid 5016
+[TRACE flextrace] calling update on a tree node
+[TRACE flextrace] calling update on a tree node
+[TRACE flextrace] calling update on a tree node
+[TRACE flextrace] trace update complete returning...
+[TRACE flextrace::tui] generated stack trace from stackid 5016
+[TRACE flextrace] calling update on a tree node
+[TRACE flextrace] found a matching child for /usr/lib64/libc.so.6:__memcpy_evex_unaligned_erms(at)140025779443941!
+[TRACE flextrace] calling update on a tree node
+[TRACE flextrace] calling update on a tree node
+[TRACE flextrace] trace update complete returning...
+[TRACE flextrace::tui] generated stack trace from stackid 1441
+[TRACE flextrace] calling update on a tree node
+[TRACE flextrace] calling update on a tree node
+[TRACE flextrace] calling update on a tree node
+[TRACE flextrace] trace update complete returning...
+[TRACE flextrace::tui] generated stack trace from stackid 5343
+[TRACE flextrace] calling update on a tree node
+[TRACE flextrace] found a matching child for /usr/lib64/systemd/libsystemd-shared-257.so:SD_SHARED(at)140025780592656!
+[TRACE flextrace] calling update on a tree node
+[TRACE flextrace] calling update on a tree node
+[TRACE flextrace] trace update complete returning...
+[TRACE flextrace::tui] generated stack trace from stackid 1299
+[TRACE flextrace] calling update on a tree node
+[TRACE flextrace] calling update on a tree node
+[TRACE flextrace] calling update on a tree node
+[TRACE flextrace] trace update complete returning...
+[TRACE flextrace::tui] generated stack trace from stackid 2802
+[TRACE flextrace] calling update on a tree node
+[TRACE flextrace] calling update on a tree node
+[TRACE flextrace] calling update on a tree node
+[TRACE flextrace] trace update complete returning...
+[TRACE flextrace::tui] generated stack trace from stackid 1986
+[TRACE flextrace] calling update on a tree node
+[TRACE flextrace] calling update on a tree node
+[TRACE flextrace] trace update complete returning...
+[ERROR flextrace::perf] ringbuf mpsc reciever dropped
+[TRACE mio::poll] deregistering event source from poller

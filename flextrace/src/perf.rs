@@ -1,11 +1,12 @@
-use std::{collections::HashMap as StdHashMap};
+use std::{collections::HashMap as StdHashMap, num::NonZero};
 
 use anyhow::Result;
-use aya::{Ebpf, maps::{MapData, RingBuf, StackTraceMap, stack_trace::StackTrace}, programs::{PerfEvent, Program, perf_event::{PerfEventLink, PerfEventScope, SamplePolicy}}, util::online_cpus};
-use flextrace::{AyaHashMap, ringbuf_read};
+use aya::{Ebpf, maps::{MapData, RingBuf, StackTraceMap, stack_trace::{StackTrace}}, programs::{PerfEvent, Program, perf_event::{PerfEventLink, PerfEventScope, SamplePolicy}}, util::online_cpus};
+use blazesym::{Pid, symbolize::{Input, Sym, Symbolized, Symbolizer, source::{Process, Source}}};
+use aya::maps::HashMap as AyaHashMap;
 use flextrace_common::{FlextraceError, PerfEventType, PerfProcessConfig, PerfSample};
-use log::{debug, info};
-use tokio::{io::unix::AsyncFd, sync::mpsc::{self, Receiver}, task::JoinHandle};
+use log::{debug, error, info};
+use tokio::{io::unix::AsyncFd, sync::mpsc::{self, Receiver}};
 
 pub struct PerfManager {
     ebpf: Ebpf,
@@ -14,15 +15,10 @@ pub struct PerfManager {
     map_stack_traces: StackTraceMap<MapData>,
 
     pub event_rx: Receiver<PerfSample>,
-    event_polling_task: JoinHandle<anyhow::Result<()>>,
+    symbolizer: Symbolizer,
 
     links: StdHashMap<u64, Vec<PerfEventLink>>,
-}
-
-pub struct ProfileData {
-    pub name: String,
-    pub gid: u32,
-    pub events: StdHashMap<PerfEventType, u32>,
+    pub event_list: Vec<String>,
 }
 
 impl PerfManager {
@@ -31,6 +27,7 @@ impl PerfManager {
 
         let mut ebpf = aya::EbpfLoader::new().load(bytes)?;
 
+        let mut prog_names: Vec<String> = Vec::new();
         /*
         let mut ebpf = aya::Ebpf::load(aya::include_bytes_aligned!(concat!(
             env!("OUT_DIR"),
@@ -41,21 +38,20 @@ impl PerfManager {
             // This can happen if you remove all log statements from your eBPF program.
             warn!("failed to initialize eBPF logger: {e}");
         }
-        */        
-
-        for (name, _) in ebpf.maps() {
-        }
+        */
 
         // load ALL of the perf events into the kernel before we attach them so that the map fds know where to go
-        for (_, program) in ebpf.programs_mut() {
+        for (name, program) in ebpf.programs_mut() {
             match program {
                 Program::PerfEvent(p) => {
                     p.load()?;
+                    debug!("loaded event {name}");
+                    prog_names.push(name.to_string());
                 },
                 _ => continue,
             }
         }
-        info!("perf events loaded into kernel");
+        debug!("perf events loaded into kernel");
 
         // access the maps
         let config_map = { 
@@ -70,27 +66,31 @@ impl PerfManager {
             let raw_map = ebpf.take_map("PERF_STACK_TRACES").unwrap();
             StackTraceMap::try_from(raw_map).unwrap()
         };
-        info!("maps initialized");
+        debug!("maps initialized");
 
         let mut ringbuf_fd = AsyncFd::new(event_map)?;
         let (perf_tx, perf_rx) = mpsc::channel::<PerfSample>(100);
 
-        let polling_task = tokio::spawn(async move {
+        tokio::spawn(async move {
             loop {
                 for i in ringbuf_read::<PerfSample>(&mut ringbuf_fd).await.unwrap() {
-                    perf_tx.send(i).await.map_err(|_| anyhow::anyhow!("reciever closed?"))?;
+                    if let Err(_) = perf_tx.send(i).await {
+                        error!("ringbuf mpsc reciever dropped");
+                        return
+                    };
                 }
             }
         });
-        info!("event poller started");
+        debug!("event poller started");
 
         Ok(Self {
             ebpf: ebpf,
             map_perf_config: config_map,
             map_stack_traces: stack_traces,
             links: StdHashMap::new(),
-            event_polling_task: polling_task,
             event_rx: perf_rx,
+            symbolizer: Symbolizer::new(),
+            event_list: prog_names,
         })
     }
 
@@ -137,34 +137,26 @@ impl PerfManager {
                 },
             };
         }
-        info!("attached perf event {perf_ebpf_name} with id: {id} sampling period: {some_period} scope: {scope_info}");
+        debug!("attached perf event {perf_ebpf_name} with id: {id} sampling period: {some_period} scope: {scope_info}");
 
         self.links.insert(id, links);
-
         Ok(())
-    }
-
-    pub fn list_events(&self) -> Vec<String> {
-        let mut names: Vec<String> = Vec::new();
-        for (name, _) in self.ebpf.programs() {
-            names.push(name.to_string());
-        }
-        names
     }
 
     pub fn detach_event(&mut self, id: u64) {
         self.links.remove(&id);
+        debug!("detached perf event with id {id}");
     }
 
-    pub fn update_perf_config(&mut self, filter_exclude: Vec<(u32, u32)>, stack_trace_fp: Vec<u32>) -> Result<()> {
+    pub fn update_perf_config(&mut self, filter_exclude: &Vec<(u32, u32)>, stack_trace_fp: &Vec<u32>) -> Result<()> {
         let mut config_temp: StdHashMap<u32, PerfProcessConfig> = StdHashMap::new();
 
         for (key, mask) in filter_exclude {
-            config_temp.insert(key, PerfProcessConfig(mask, false));
+            config_temp.insert(*key, PerfProcessConfig(*mask, false));
         }
 
         for key in stack_trace_fp {
-            config_temp.entry(key).and_modify(|config| config.1 = true).or_insert(PerfProcessConfig(0, true));
+            config_temp.entry(*key).and_modify(|config| config.1 = true).or_insert(PerfProcessConfig(0, true));
         }
 
         for (key, config) in config_temp {
@@ -178,4 +170,65 @@ impl PerfManager {
     pub fn get_stack_fp(&mut self, id: i64) -> Result<StackTrace, aya::maps::MapError> {
         self.map_stack_traces.get(&(id as u32), 0)
     }
+
+    pub fn symbolize_fp_trace(&mut self, trace: StackTrace, pid: u32) -> Result<Vec<String>> {
+        let mut ips: Vec<u64> = Vec::new();
+
+        for frame in trace.frames() {
+            ips.push(frame.ip);
+        }
+
+        let syms = self.symbolizer.symbolize(&Source::Process(Process::new(Pid::Pid(NonZero::new(pid).unwrap()))), Input::AbsAddr(&ips))?;
+        let mut trace_parsed: Vec<String> = Vec::new();
+
+        for result in syms {
+            match result {
+                Symbolized::Sym(Sym {
+                    name,
+                    module,
+                    ..
+                }) => {
+                    // im sorry about this
+                    let namestr: String = module.unwrap().to_str().unwrap().to_string() + ":" + &name.to_string() + "(at)";
+                    trace_parsed.push(namestr);
+                }
+                Symbolized::Unknown(..) =>  { trace_parsed.push(String::from("nosym:")) }
+            }
+        }
+
+        for i in 0..trace_parsed.len() {
+            trace_parsed[i].push_str(&ips[i].to_string());
+        }
+
+        Ok(trace_parsed)
+    }
+}
+
+pub async fn ringbuf_read<T: Copy>(fd: &mut AsyncFd<RingBuf<MapData>>) -> Result<Vec<T>> {
+    let mut readguard = fd.readable_mut().await?;
+    let mut items: Vec<T> = Vec::new();
+
+    readguard.try_io(|inner|{
+        let mut count: usize = 0;
+
+        while let Some(event) = inner.get_mut().next() {
+            // reserve/submit api guarantees an unmangled struct
+            // but .next() still returns [u8] so we need to unsafe pointer cast
+
+            let event_struct = unsafe {
+                let ptr = event.as_ptr() as *const T;
+
+                *ptr
+            };
+
+            items.push(event_struct);
+            count += 1;
+
+        }
+
+        Ok(count)
+    }).unwrap().unwrap();
+
+        readguard.clear_ready();
+        Ok(items)
 }

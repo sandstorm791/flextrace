@@ -1,73 +1,113 @@
-pub use std::collections::HashMap as StdHashMap;
-use aya::maps::{MapData, RingBuf};
 pub use aya::maps::HashMap as AyaHashMap;
+use bincode_next::{Decode, Encode, config, decode_from_slice, encode_to_vec};
 use flextrace_common::PerfEventType;
-use tokio::io::unix::AsyncFd;
+use log::trace;
+use ratatui::{buffer::Buffer, layout::{Direction, Rect}, style::{Color, Style}, widgets::{Bar, BarChart, Block, Widget}};
 use anyhow::Result;
 
-pub struct TreeNode {
-    // making all of this public so we can screw around with it later to actually analyze it
-    pub counters: StdHashMap<PerfEventType, u32>,
-    pub name: String,
-    pub children: Vec<TreeNode>,
+use std::{cmp::Reverse, collections::HashMap, fs::{read, write}};
+
+mod perf;
+
+#[derive(Debug, Encode, Decode)]
+pub struct Tree {
+    pub nodes: Vec<Node>,
+    pub focused_event: PerfEventType,
+    pub focused_node: usize,
+    pub selected_node: usize,
+    pub focused_children_sorted_cache: Vec<(String, u64, usize)>,
 }
 
-impl TreeNode {
-    // we assume that we are included in the elements to be updated but not in the trace vec
-    // we also assume that the front of the trace vec is the head of the trace
-    pub fn update(&mut self, mut trace: Vec<String>, event: PerfEventType) {
-        self.counters.entry(event).and_modify(|c| *c += 1 ).or_insert(1);
-        let stack_highest = &trace[0].to_string();
+#[derive(Debug, Encode, Decode)]
+pub struct Node {
+    pub counters: HashMap<PerfEventType, u32>,
+    pub name: String,
+    pub children: HashMap<String, usize>,
+    pub hits: u32,
+    pub parent: usize,
+}
 
-        match trace.pop() {
-            Some(_) => (),
-            None => return,
-        };
+#[derive(Debug, Encode, Decode)]
+pub struct ProfileData {
+    pub name: String,
+    pub gid: u32,
+    pub events: HashMap<PerfEventType, u32>,
+}
 
-        for node in &mut self.children {
-            if &node.name == stack_highest {
-                node.update(trace, event);
-                return;
-            }
+#[derive(Debug, Encode, Decode)]
+pub struct SaveData {
+    pub tree: Tree,
+    pub data: HashMap<u32, ProfileData>,
+}
+
+impl Tree {
+    pub fn update(&mut self, trace: Vec<String>, event: PerfEventType) {
+        trace!("updating tree with new trace");
+        let mut current_index = 0;
+
+        for name in trace {
+            let next_index = if let Some(&child_index) = self.nodes[current_index].children.get(&name) { child_index }
+            else {
+                trace!("adding new child to tree");
+                let new_child_index = self.nodes.len();
+                let new_node = Node {
+                    name: name.clone(),
+                    counters: HashMap::new(),
+                    hits: 0,
+                    children: HashMap::new(),
+                    parent: current_index,
+                };
+
+                self.nodes.push(new_node);
+                self.nodes[current_index].children.insert(name, new_child_index);
+                new_child_index
+            };
+
+            current_index = next_index;
+            self.nodes[current_index].hits += 1;
+            self.nodes[current_index].counters.entry(event).and_modify(|c| *c += 1 ).or_insert(1);
         }
+    }
 
-        self.children.push(
-            TreeNode {
-                counters: StdHashMap::new(),
-                name: stack_highest.to_string(),
-                children: Vec::new(),
-            }
-        );
+    pub fn update_sorted_cache(&mut self) {
+        let mut cache: Vec<(String, u64, usize)> = Vec::new();
 
-        self.children[0].update(trace, event);
+        for child in &self.nodes[self.focused_node].children {
+            cache.push((child.0[child.0.find(":").unwrap()+1..].to_string(), *self.nodes[*child.1].counters.get(&self.focused_event).unwrap_or(&self.nodes[*child.1].hits) as u64, *child.1))
+        } // this looks so funny im leaving it in 🥀
+
+        cache.sort_by_key(|item| Reverse(item.1));
+
+        self.focused_children_sorted_cache = cache;
     }
 }
 
-pub async fn ringbuf_read<T: Copy>(fd: &mut AsyncFd<RingBuf<MapData>>) -> Result<Vec<T>> {
-    let mut readguard = fd.readable_mut().await?;
-    let mut items: Vec<T> = Vec::new();
+impl Widget for &Tree {
+    fn render(self, area: Rect, buf: &mut Buffer) {
+        let mut bars: Vec<Bar> = Vec::new();
 
-    readguard.try_io(|inner|{
-        let mut count: usize = 0;
-
-        while let Some(event) = inner.get_mut().next() {
-            // reserve/submit api guarantees an unmangled struct
-            // but .next() still returns [u8] so we need to unsafe pointer cast
-
-            let event_struct = unsafe {
-                let ptr = event.as_ptr() as *const T;
-
-                *ptr
-            };
-
-            items.push(event_struct);
-            count += 1;
-
+        for item in &self.focused_children_sorted_cache {
+            let mut bar = Bar::new(item.1).label(&*item.0);
+            if &self.focused_children_sorted_cache[self.selected_node].0 == &item.0 {
+                bar = bar.style(Color::Green);
+            }
+            bars.push(bar);
         }
 
-        Ok(count)
-    }).unwrap().unwrap();
+        let chart = BarChart::horizontal(bars);
 
-        readguard.clear_ready();
-        Ok(items)
+        chart.render(area, buf);
+    }
+}
+
+pub fn save_traces(path: String, data: SaveData) -> Result<()> {
+    let ser = encode_to_vec(data, config::standard())?;
+    write(path, ser)?;
+    Ok(())
+}
+
+pub fn read_traces_file(path: String) -> Result<SaveData> {
+    let bytes = read(path)?;
+    let de: (SaveData, usize) = decode_from_slice(&bytes, config::standard())?;
+    Ok(de.0)
 }

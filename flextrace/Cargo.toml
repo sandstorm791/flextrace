@@ -21,9 +21,15 @@ tokio = { workspace = true, features = [
     "net",
     "signal",
     "sync",
+    "time",
 ] }
 clap = { workspace = true, features = ["derive"] }
 clap-help = "1.5.0"
+blazesym = "0.2.3"
+bincode-next = "2.1.0"
+ratatui = "0.30.0"
+crossterm = { version = "0.29.0", features = ["event-stream"] }
+futures = "0.3.32"
 [build-dependencies]
 anyhow = { workspace = true }
 aya-build = { workspace = true }
