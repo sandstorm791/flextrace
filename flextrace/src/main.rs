@@ -1,25 +1,29 @@
-use std::time::Duration;
+use std::io;
 
 use clap::Parser;
+use crossterm::{event::{DisableMouseCapture, EnableMouseCapture}, execute, terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode}};
+use flextrace::{SaveData, save_traces};
 use flextrace_common::{PERF_EVENT_VARIANTS, PerfEventType};
-use anyhow::Result;
 //#[rustfmt::skip]
-use log::{LevelFilter, debug, info, trace};
+use log::{LevelFilter, info};
 
 mod perf;
+mod tui;
+
 use perf::*;
+use ratatui::{Terminal, prelude::CrosstermBackend};
 
-use flextrace::*;
-use ratatui::{DefaultTerminal, crossterm::event};
+use crate::tui::{State, run_app};
+//use ratatui::{DefaultTerminal, crossterm::event};
 
-#[derive(Debug, Parser)]
+#[derive(Debug, Parser, Clone)]
 #[command(name = "flextrace", version = "0.1.0", about = "an efficient system profiler using ebpf", long_about = None, arg_required_else_help = false)]
 struct Opt {
     //this way of taking in cli args is lowkey sketchy but idk i might change it later
     // just have to remind the user to enter everything IN order
 
     #[arg(short, long, default_value_t = false)]
-    gui: bool,
+    tui: bool,
 
     #[arg(short, long, default_value_t = false)]
     verbose: bool,
@@ -41,34 +45,6 @@ struct Opt {
 
     #[arg(long, help = "list perf events supported by flextrace (remove the event_ when using as an argument)", default_value_t = false)]
     list: bool,
-}
-
-pub struct Tui {
-    nextid: u64,
-    perf_manager: PerfManager,
-    tree: TreeNode,
-    exit: bool,
-}
-
-impl Tui {
-    pub fn run(&mut self, terminal: &mut DefaultTerminal) -> anyhow::Result<()> {
-        while !self.exit {
-            terminal.draw(|frame| self.draw(frame))?;
-            self.poll_events()?;
-        }
-        Ok(())
-    }
-
-    pub fn poll_events(&mut self) -> anyhow::Result<()> {
-        match event::poll(Duration::from_millis(5)) {
-            Ok(true) => (),
-            Ok(false) => return Ok(()),
-            Err(e) => return Err(e.into()),
-        }
-        Ok(())
-    }
-
-    pub fn draw(&mut self,)
 }
 
 // im pretty sure clap automaticlly handles the vec<> part and we
@@ -140,6 +116,7 @@ async fn main() -> anyhow::Result<()> {
     else { loglevel = LevelFilter::Info; }
 
     env_logger::Builder::new()
+        .target(env_logger::Target::Stdout)
         .filter_level(loglevel)
         .init();
     
@@ -157,22 +134,21 @@ async fn main() -> anyhow::Result<()> {
 
     // apply perf configuration to PERF_CONFIG map
     if (opt.filter_exclude.get(0).unwrap() != &(0, 0)) || (opt.stack_trace_fp.get(0) != None) {
-        perf_manager.update_perf_config(opt.filter_exclude, opt.stack_trace_fp)?;
+        perf_manager.update_perf_config(&opt.filter_exclude, &opt.stack_trace_fp)?;
     }
-
 
     let mut nextid: u64 = 0;
 
     // load and attach perf events
-    for event_arg in opt.events {
-        if !(PerfEventType::from_str(&event_arg.0)? == PerfEventType::Any) {
-            let perf_event_enum = PerfEventType::from_str(&event_arg.0)?;
-
-            let period_arg: Option<u64>;
+    for event_arg in &opt.events {
+        let period_arg: Option<u64>;
             match event_arg.1 {
                 0 => period_arg = None,
                 _ => period_arg = Some(event_arg.1),
             }
+
+        if !(PerfEventType::from_str(&event_arg.0)? == PerfEventType::Any) {
+            let perf_event_enum = PerfEventType::from_str(&event_arg.0)?;
             perf_manager.attach_event(perf_event_enum, None, period_arg, nextid)?;
         }
         else {
@@ -182,7 +158,7 @@ async fn main() -> anyhow::Result<()> {
 
             for name in event_names {
                 let perf_event_enum = PerfEventType::from_str(&name[6..].to_string())?;
-                perf_manager.attach_event(perf_event_enum, None, None, nextid)?;
+                perf_manager.attach_event(perf_event_enum, None, period_arg, nextid)?;
                 nextid += 1;
             }
             break;
@@ -190,46 +166,29 @@ async fn main() -> anyhow::Result<()> {
         nextid += 1;
     }
 
-    let mut profile_data: StdHashMap<u32, ProfileData> = StdHashMap::new(); 
-    let mut stack_tree = TreeNode { counters: StdHashMap::new(), name: String::from("root"), children: Vec::new() };
+    enable_raw_mode()?;
+    let mut stderr = io::stderr();
+    execute!(stderr, EnterAlternateScreen, EnableMouseCapture)?;
     
-    let mut stacks = 0;
+    let backend = CrosstermBackend::new(stderr);
+    let mut terminal = Terminal::new(backend)?;
 
-    loop {
-        if let Some(recv) = &perf_manager.event_rx.recv().await {
+    let mut app: State = State::new(perf_manager, opt.clone());
 
-            if let Some(stackid) = recv.stack_id {
-                if stackid < 0 {
-                    debug!("bpf_get_stackid() returned {stackid}, dropping stack trace");
-                }
-                else {
-                    let trace = perf_manager.get_stack_fp(stackid)?;
-                    trace!("generated stack trace from stackid {stackid}");
+    run_app(&mut terminal, &mut app).await?;
 
-                    stack_tree.update(perf_manager.symbolize_fp_trace(trace, recv.pid)?, recv.event_type);
-                    stacks += 1;
-                }
-            }
+    disable_raw_mode()?;
+    execute!(
+        terminal.backend_mut(),
+        LeaveAlternateScreen,
+        DisableMouseCapture
+    )?;
+    terminal.show_cursor()?;
 
-            let event_type = recv.event_type;
-            let pid = recv.pid;
-            let recv_gid = recv.gid;
-
-            let profile_data = profile_data.entry(pid).or_insert_with(||
-                ProfileData {
-                    events: StdHashMap::new(),
-                    name: String::from_utf8_lossy(&recv.cmd).to_string(),
-                    gid: 0,
-                }
-            );
-            
-            // increment the counter for that event
-            *profile_data.events.entry(event_type).or_insert(0) += 1;
-            profile_data.gid = recv_gid;
-        }
-        if stacks >= 100 {
-            save_traces(opt.out.clone().unwrap(), stack_tree)?;
-            return Ok(())
-        }
+    if let Some(path) = opt.out {
+        let save_data = SaveData {tree: app.tree, data: app.profile_data};
+        save_traces(path, save_data)?;
     }
+
+    Ok(())
 }
