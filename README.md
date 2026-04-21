@@ -3,7 +3,7 @@ flextrace is an ebpf-powered application profiling toolkit for linux
 
 (minimum kernel version is something pretty modern cause this uses aya mainline until next version is actually released and it has weird verifier issues on older kernels)
 
-#### roadmap:
+#### todo:
 
 ✅ ability to do basic perf event data gathering based on various hardware and software events, including info about
   what process triggered it, mostly helpful for big picture info
@@ -18,9 +18,7 @@ flextrace is an ebpf-powered application profiling toolkit for linux
 
 - have nice data analytics features
 
-- gui frontend
-
-currently only supports amd64 system v abi but hopefully others soon
+- decent tui frontend
 
 nothing is production yet lol but hopefully it will be some time
 
