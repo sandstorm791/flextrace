@@ -91,16 +91,6 @@ pub enum PerfEventType {
     CgroupSwitches = 20,
 }
 
-#[derive(Default, Copy, Clone, Debug)]
-#[repr(C)]
-pub struct ProbeConfig {
-    pub num_args: u8,
-    pub ptr_depths: [u8; 32], // 32 arguments ought to be enough for anyone... right?
-}
-
-#[cfg(feature = "user")]
-unsafe impl aya::Pod for ProbeConfig {}
-
 #[derive(Copy, Clone)]
 pub struct PerfProcessConfig(pub u32, pub bool);
 

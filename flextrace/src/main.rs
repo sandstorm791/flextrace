@@ -138,6 +138,9 @@ async fn main() -> anyhow::Result<()> {
     }
 
     let mut nextid: u64 = 0;
+    let mut event_list: Vec<PerfEventType> = Vec::new();
+
+    event_list.push(PerfEventType::None);
 
     // load and attach perf events
     for event_arg in &opt.events {
@@ -150,15 +153,19 @@ async fn main() -> anyhow::Result<()> {
         if !(PerfEventType::from_str(&event_arg.0)? == PerfEventType::Any) {
             let perf_event_enum = PerfEventType::from_str(&event_arg.0)?;
             perf_manager.attach_event(perf_event_enum, None, period_arg, nextid)?;
+            event_list.push(perf_event_enum);
         }
         else {
             info!("using all perf events\n");
+            event_list = Vec::new();
+            event_list.push(PerfEventType::None);
 
             let event_names = perf_manager.event_list.clone();
 
             for name in event_names {
                 let perf_event_enum = PerfEventType::from_str(&name[6..].to_string())?;
                 perf_manager.attach_event(perf_event_enum, None, period_arg, nextid)?;
+                event_list.push(perf_event_enum);
                 nextid += 1;
             }
             break;
@@ -173,7 +180,7 @@ async fn main() -> anyhow::Result<()> {
     let backend = CrosstermBackend::new(stderr);
     let mut terminal = Terminal::new(backend)?;
 
-    let mut app: State = State::new(perf_manager, opt.clone());
+    let mut app: State = State::new(perf_manager, opt.clone(), event_list);
 
     run_app(&mut terminal, &mut app).await?;
 

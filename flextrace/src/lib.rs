@@ -13,9 +13,10 @@ mod perf;
 pub struct Tree {
     pub nodes: Vec<Node>,
     pub focused_event: PerfEventType,
-    pub focused_node: usize,
-    pub selected_node: usize,
+    pub focused_node: usize, // in nodes
+    pub selected_node: usize, // in focused_children_sorted_cache
     pub focused_children_sorted_cache: Vec<(String, u64, usize)>,
+    pub display_head_node: usize, // in focused_children_sorted_cache
 }
 
 #[derive(Debug, Encode, Decode)]
@@ -25,6 +26,14 @@ pub struct Node {
     pub children: HashMap<String, usize>,
     pub hits: u32,
     pub parent: usize,
+}
+
+impl Node {
+    pub fn counter(&self, event: PerfEventType) -> u32 {
+        if event == PerfEventType::None { return self.hits }
+        if let Some(hits) = self.counters.get(&event) { return *hits }
+        else { 0 }
+    }
 }
 
 #[derive(Debug, Encode, Decode)]
@@ -73,7 +82,7 @@ impl Tree {
         let mut cache: Vec<(String, u64, usize)> = Vec::new();
 
         for child in &self.nodes[self.focused_node].children {
-            cache.push((child.0[child.0.find(":").unwrap()+1..].to_string(), *self.nodes[*child.1].counters.get(&self.focused_event).unwrap_or(&self.nodes[*child.1].hits) as u64, *child.1))
+            cache.push((child.0[child.0.find(":").unwrap()+1..].to_string(), *self.nodes[*child.1].counters.get(&self.focused_event).unwrap_or(&self.nodes[*child.1].counter(self.focused_event)) as u64, *child.1))
         } // this looks so funny im leaving it in 🥀
 
         cache.sort_by_key(|item| Reverse(item.1));
@@ -84,11 +93,12 @@ impl Tree {
 
 impl Widget for &Tree {
     fn render(self, area: Rect, buf: &mut Buffer) {
+        if self.focused_children_sorted_cache.len() == 0 {return}
         let mut bars: Vec<Bar> = Vec::new();
 
-        for item in &self.focused_children_sorted_cache {
-            let mut bar = Bar::new(item.1).label(&*item.0);
-            if &self.focused_children_sorted_cache[self.selected_node].0 == &item.0 {
+        for i in (self.display_head_node..&self.focused_children_sorted_cache.len() - 1) {
+            let mut bar = Bar::new(self.focused_children_sorted_cache[i].1).label("[".to_string() + &i.to_string() + "]  " + &*self.focused_children_sorted_cache[i].0);
+            if &self.focused_children_sorted_cache[self.selected_node].0 == &self.focused_children_sorted_cache[i].0 {
                 bar = bar.style(Color::Green);
             }
             bars.push(bar);
