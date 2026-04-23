@@ -83,6 +83,7 @@ impl State {
                             for i in (0..self.tree.focused_children_sorted_cache.len() - 1) {
                                 if self.tree.focused_children_sorted_cache[i].2 == old_node {
                                     self.tree.selected_node = i;
+                                    break;
                                 }
                             }
                         }
