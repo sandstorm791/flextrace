@@ -1,6 +1,6 @@
 use std::{collections::HashMap, time::Duration};
 
-use crossterm::{event::{Event, EventStream, KeyCode}, style::Stylize};
+use crossterm::event::{Event, EventStream, KeyCode};
 use flextrace_common::PerfEventType;
 use futures::StreamExt;
 use flextrace::{Node, ProfileData, Tree};
@@ -19,24 +19,33 @@ pub struct State {
     pub nextid: u64,
     pub perf_manager: PerfManager,
     pub tree: Tree,
-    pub focused_event: PerfEventType,
     pub profile_data: HashMap<u32, ProfileData>,
     pub screen: Screen,
     pub quitting: bool,
+    pub selected_event_index: usize,
+    pub available_events: Vec<PerfEventType>,
     pub opt: Opt,
 }
 
 impl State {
-    pub fn new(pm: PerfManager, options: Opt) -> Self {
-        let tree = Tree { nodes: vec![Node { counters: HashMap::new(), name: "root".to_string(), children: HashMap::new(), hits: 0, parent: 0 }], focused_event: PerfEventType::None, focused_node: 0, selected_node: 0, focused_children_sorted_cache: Vec::new() };
+    pub fn new(pm: PerfManager, options: Opt, event_list: Vec<PerfEventType>) -> Self {
+        let tree = Tree {
+            nodes: vec![Node { counters: HashMap::new(), name: "root".to_string(), children: HashMap::new(), hits: 0, parent: 0 }],
+            focused_event: PerfEventType::None,
+            focused_node: 0, selected_node: 0,
+            focused_children_sorted_cache: Vec::new(),
+            display_head_node: 0,
+        };
+
         State {
             nextid: 0,
             perf_manager: pm,
             tree: tree,
-            focused_event: PerfEventType::None,
             profile_data: HashMap::new(),
             screen: Screen::Main,
             quitting: false,
+            selected_event_index: 0,
+            available_events: event_list,
             opt: options,
         }
     }
@@ -47,34 +56,60 @@ impl State {
                     match key.code {
                         KeyCode::Char('q') => {
                             self.screen = Screen::Exiting;
-                            return;
                         }
                         KeyCode::Down => {
                             if self.tree.selected_node + 1 < self.tree.focused_children_sorted_cache.len() {
                                 self.tree.selected_node += 1;
                             }
-                            return;
                         }
                         KeyCode::Up => {
                             if self.tree.selected_node > 0 {
                                 self.tree.selected_node -= 1;
                             }
-                            return;
                         }
                         KeyCode::Right => {
                             if self.tree.focused_children_sorted_cache.len() == 0 {return}
                             self.tree.focused_node = self.tree.focused_children_sorted_cache[self.tree.selected_node].2;
                             self.tree.selected_node = 0;
                             self.tree.update_sorted_cache();
-                            return;
                         }
                         KeyCode::Left => {
+                            let old_node = self.tree.focused_node;
                             self.tree.focused_node = self.tree.nodes[self.tree.focused_node].parent;
                             self.tree.update_sorted_cache();
 
-                            // in the future somehow make this the old focused node
+                            // this is gonna make ts slow ill look into making it faster later, i have an idea but it uses a bit more ram
                             self.tree.selected_node = 0;
-                            return;
+                            for i in (0..self.tree.focused_children_sorted_cache.len() - 1) {
+                                if self.tree.focused_children_sorted_cache[i].2 == old_node {
+                                    self.tree.selected_node = i;
+                                    break;
+                                }
+                            }
+                        }
+                        KeyCode::PageDown => {
+                            if self.tree.display_head_node < self.tree.focused_children_sorted_cache.len() - 1 {
+                                self.tree.display_head_node += 1;
+                            }
+                        }
+                        KeyCode::PageUp => {
+                            if self.tree.display_head_node > 0 {
+                                self.tree.display_head_node -= 1;
+                            }
+                        }
+                        KeyCode::Char('z') => {
+                            if self.selected_event_index > 0 {
+                                self.selected_event_index -= 1;
+                                self.tree.focused_event = self.available_events[self.selected_event_index];
+                                self.tree.update_sorted_cache();
+                            }
+                        }
+                        KeyCode::Char('x') => {
+                            if self.selected_event_index < self.available_events.len() - 1 {
+                                self.selected_event_index += 1;
+                                self.tree.focused_event = self.available_events[self.selected_event_index];
+                                self.tree.update_sorted_cache();
+                            }
                         }
                         _ => (),
                     }
@@ -152,16 +187,23 @@ pub fn render(f: &mut Frame, app: &mut State) {
     match app.screen {
         Screen::Main => {
             let layout_chunks = Layout::default().direction(Direction::Vertical).constraints([Constraint::Length(3), Constraint::Fill(1)]).split(f.area());
+            let event_string = {
+                if let Some(name) = app.available_events[app.selected_event_index].ebpf_from_self() {
+                    name
+                }
+                else { "None".to_string() }
+            };
+
             let title = Line::from(vec![
                 Span::styled("   flextrace pre alpha   ", Style::new().red()),
                 Span::styled("      stack trace tree            ", Style::new().cyan()),
                 Span::raw("focused function: ".to_owned() + &app.tree.nodes[app.tree.focused_node].name),
+                Span::raw("   focused event: ".to_string() + &event_string),
             ]);
 
             f.render_widget(title, layout_chunks[0]);
             f.render_widget(&app.tree, layout_chunks[1]);
         },
-        // in the future make this the focused tree node ^^^^^ this is temporary and does not allow traversal of the tree
         Screen::Exiting => {
             let span = Span::raw("are you sure you want to exit? (q)");
             f.render_widget(span, f.area());
