@@ -21,10 +21,6 @@ use crate::tui::{State, run_app};
 struct Opt {
     //this way of taking in cli args is lowkey sketchy but idk i might change it later
     // just have to remind the user to enter everything IN order
-
-    #[arg(short, long, default_value_t = false)]
-    tui: bool,
-
     #[arg(short, long, default_value_t = false)]
     verbose: bool,
 
@@ -34,13 +30,16 @@ struct Opt {
     #[arg(short, long, value_name = "PATH", help = "path to output profiling data after completing execution")]
     out: Option<String>,
 
-    #[arg(short, long, value_parser = parse_events, help = "list of perf events to profile with optional period, event:period", default_value = "all")]
+    #[arg(short, long, value_parser = parse_events, num_args = 1.., help = "list of perf events to profile with optional period, event:period", default_value = "all")]
     events: Vec<(String, u64)>,
 
     #[arg(short = 'x', long, value_parser = parse_filter, help = "define events to ignore from certain processes: pid:event1,event2,event3\nor just the pid to drop everything from that process", default_value = "noarg")]
     filter_exclude: Vec<(u32, u32)>,
 
-    #[arg(short = 'f', long, help = "specify processes to return stack traces from upon perf event hit based on frame pointers (program MUST be compiled without frame pointer omission)")]
+    #[arg(short = 'p', long, num_args = 1.., help = "explicitly declare processes to be profiled (if this flag is not used, the default is all processes)")]
+    processes: Vec<u32>,
+
+    #[arg(short = 'f', long, num_args = 1.., help = "specify processes to return stack traces from upon perf event hit based on frame pointers (program MUST be compiled without frame pointer omission)")]
     stack_trace_fp: Vec<u32>,
 
     #[arg(long, help = "list perf events supported by flextrace (remove the event_ when using as an argument)", default_value_t = false)]
@@ -142,7 +141,8 @@ async fn main() -> anyhow::Result<()> {
 
     event_list.push(PerfEventType::None);
 
-    // load and attach perf events
+    // load and attach perf events, we allow the "all" argument to duplicate events incase people want
+    // to do that for some reason and honestly if you pass in an argument like that unintentionally you had it coming lowk
     for event_arg in &opt.events {
         let period_arg: Option<u64>;
             match event_arg.1 {
@@ -152,7 +152,17 @@ async fn main() -> anyhow::Result<()> {
 
         if !(PerfEventType::from_str(&event_arg.0)? == PerfEventType::Any) {
             let perf_event_enum = PerfEventType::from_str(&event_arg.0)?;
-            perf_manager.attach_event(perf_event_enum, None, period_arg, nextid)?;
+
+            if *&opt.processes.len() != 0  {
+                for pid in &opt.processes {
+                    perf_manager.attach_event(perf_event_enum, Some(*pid), period_arg, nextid)?;
+                    nextid += 1;
+                }
+            }
+            else {
+                perf_manager.attach_event(perf_event_enum, None, period_arg, nextid)?;
+                nextid += 1;
+            }
             event_list.push(perf_event_enum);
         }
         else {
@@ -164,13 +174,22 @@ async fn main() -> anyhow::Result<()> {
 
             for name in event_names {
                 let perf_event_enum = PerfEventType::from_str(&name[6..].to_string())?;
-                perf_manager.attach_event(perf_event_enum, None, period_arg, nextid)?;
+                
+                 if *&opt.processes.len() != 0  {
+                    for pid in &opt.processes {
+                        perf_manager.attach_event(perf_event_enum, Some(*pid), period_arg, nextid)?;
+                        nextid += 1;
+                    }
+                }
+                else {
+                    perf_manager.attach_event(perf_event_enum, None, period_arg, nextid)?;
+                    nextid += 1;
+                }
+
                 event_list.push(perf_event_enum);
-                nextid += 1;
             }
             break;
         }
-        nextid += 1;
     }
 
     enable_raw_mode()?;

@@ -2,7 +2,7 @@ pub use aya::maps::HashMap as AyaHashMap;
 use bincode_next::{Decode, Encode, config, decode_from_slice, encode_to_vec};
 use flextrace_common::PerfEventType;
 use log::trace;
-use ratatui::{buffer::Buffer, layout::{Direction, Rect}, style::{Color, Style}, widgets::{Bar, BarChart, Block, Widget}};
+use ratatui::{buffer::Buffer, layout::{Rect}, style::{Color}, widgets::{Bar, BarChart, Widget}};
 use anyhow::Result;
 
 use std::{cmp::Reverse, collections::HashMap, fs::{read, write}};
@@ -51,10 +51,10 @@ pub struct SaveData {
 
 impl Tree {
     pub fn update(&mut self, trace: Vec<String>, event: PerfEventType) {
-        trace!("updating tree with new trace");
+        trace!("updating tree with new trace with new trace, immediate child is {}", trace[0]);
         let mut current_index = 0;
 
-        for name in trace {
+        for name in trace.into_iter().rev() {
             let next_index = if let Some(&child_index) = self.nodes[current_index].children.get(&name) { child_index }
             else {
                 trace!("adding new child to tree");
@@ -95,8 +95,8 @@ impl Widget for &Tree {
     fn render(self, area: Rect, buf: &mut Buffer) {
         if self.focused_children_sorted_cache.len() == 0 {return}
         let mut bars: Vec<Bar> = Vec::new();
-
-        for i in (self.display_head_node..&self.focused_children_sorted_cache.len() - 1) {
+        
+        for i in self.display_head_node..self.focused_children_sorted_cache.len() {
             let mut bar = Bar::new(self.focused_children_sorted_cache[i].1).label("[".to_string() + &i.to_string() + "]  " + &*self.focused_children_sorted_cache[i].0);
             if &self.focused_children_sorted_cache[self.selected_node].0 == &self.focused_children_sorted_cache[i].0 {
                 bar = bar.style(Color::Green);
