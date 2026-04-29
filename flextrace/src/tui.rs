@@ -195,10 +195,12 @@ pub fn render(f: &mut Frame, app: &mut State) {
             };
 
             let title = Line::from(vec![
-                Span::styled("   flextrace pre alpha   ", Style::new().red()),
-                Span::styled("      stack trace tree            ", Style::new().cyan()),
-                Span::raw("focused function: ".to_owned() + &app.tree.nodes[app.tree.focused_node].name),
-                Span::raw("   focused event: ".to_string() + &event_string),
+                Span::styled("  flextrace pre alpha  ", Style::new().red()),
+                Span::styled("  stack trace tree  ", Style::new().cyan()),
+                Span::raw("  focused function: ".to_owned() + &app.tree.nodes[app.tree.focused_node].name),
+                Span::raw("  focused event: ".to_string() + &event_string),
+                Span::raw("  debug_focused_node_children: ".to_owned() + &app.tree.nodes[app.tree.focused_node].children.len().to_string())
+
             ]);
 
             f.render_widget(title, layout_chunks[0]);

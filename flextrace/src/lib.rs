@@ -51,10 +51,10 @@ pub struct SaveData {
 
 impl Tree {
     pub fn update(&mut self, trace: Vec<String>, event: PerfEventType) {
-        trace!("updating tree with new trace");
+        trace!("updating tree with new trace with new trace, immediate child is {}", trace[0]);
         let mut current_index = 0;
 
-        for name in trace {
+        for name in trace.into_iter().rev() {
             let next_index = if let Some(&child_index) = self.nodes[current_index].children.get(&name) { child_index }
             else {
                 trace!("adding new child to tree");
