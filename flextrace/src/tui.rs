@@ -5,7 +5,7 @@ use flextrace_common::PerfEventType;
 use futures::StreamExt;
 use flextrace::{Node, ProfileData, Tree};
 use log::{debug, trace};
-use ratatui::{Frame, Terminal, layout::{Constraint, Direction, Layout}, prelude::Backend, style::Style, text::{Line, Span, Text}, widgets::{Block, Borders, Paragraph}};
+use ratatui::{Frame, Terminal, layout::{Constraint, Direction, Layout}, prelude::Backend, style::{Style, Stylize}, text::{Line, Span, Text}, widgets::{Block, Borders, Paragraph}};
 use crate::{Opt, perf::PerfManager};
 
 const FRAMES_PER_SECOND: f32 = 60.0;
@@ -69,6 +69,7 @@ impl State {
                         }
                         KeyCode::Right => {
                             if self.tree.focused_children_sorted_cache.len() == 0 {return}
+                            if self.tree.nodes[self.tree.focused_children_sorted_cache[self.tree.selected_node].2].children.len() == 0 {return}
                             self.tree.focused_node = self.tree.focused_children_sorted_cache[self.tree.selected_node].2;
                             self.tree.selected_node = 0;
                             self.tree.update_sorted_cache();
@@ -80,7 +81,7 @@ impl State {
 
                             // this is gonna make ts slow ill look into making it faster later, i have an idea but it uses a bit more ram
                             self.tree.selected_node = 0;
-                            for i in (0..self.tree.focused_children_sorted_cache.len() - 1) {
+                            for i in 0..self.tree.focused_children_sorted_cache.len() - 1 {
                                 if self.tree.focused_children_sorted_cache[i].2 == old_node {
                                     self.tree.selected_node = i;
                                     break;
@@ -186,7 +187,7 @@ pub async fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut State) ->
 pub fn render(f: &mut Frame, app: &mut State) {
     match app.screen {
         Screen::Main => {
-            let layout_chunks = Layout::default().direction(Direction::Vertical).constraints([Constraint::Length(3), Constraint::Fill(1)]).split(f.area());
+            let layout_chunks = Layout::default().direction(Direction::Vertical).constraints([Constraint::Length(2), Constraint::Fill(1), Constraint::Length(2)]).split(f.area());
             let event_string = {
                 if let Some(name) = app.available_events[app.selected_event_index].ebpf_from_self() {
                     name
@@ -195,16 +196,21 @@ pub fn render(f: &mut Frame, app: &mut State) {
             };
 
             let title = Line::from(vec![
-                Span::styled("  flextrace pre alpha  ", Style::new().red()),
-                Span::styled("  stack trace tree  ", Style::new().cyan()),
                 Span::raw("  focused function: ".to_owned() + &app.tree.nodes[app.tree.focused_node].name),
+                Span::raw("  # children: ".to_owned() + &app.tree.nodes[app.tree.focused_node].children.len().to_string()),
                 Span::raw("  focused event: ".to_string() + &event_string),
-                Span::raw("  debug_focused_node_children: ".to_owned() + &app.tree.nodes[app.tree.focused_node].children.len().to_string())
+                Span::raw("  selected: ".to_owned() + &app.tree.focused_children_sorted_cache[app.tree.selected_node].0)
 
+            ]);
+
+            let footer = Line::from(vec![
+                Span::raw(" flextrace pre alpha ").red(),
+                Span::raw(" stack trace tree ").blue(),
             ]);
 
             f.render_widget(title, layout_chunks[0]);
             f.render_widget(&app.tree, layout_chunks[1]);
+            f.render_widget(footer, layout_chunks[2]);
         },
         Screen::Exiting => {
             let span = Span::raw("are you sure you want to exit? (q)");
