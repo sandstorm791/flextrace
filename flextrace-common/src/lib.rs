@@ -104,7 +104,7 @@ impl PerfEventType {
             //"none" => Ok(PerfEventType::None),
             "any" => Ok(PerfEventType::Any),
             "all" => Ok(PerfEventType::Any),
-            "cache_miss" => Ok(PerfEventType::CacheMiss),
+            "cache_miss"  => Ok(PerfEventType::CacheMiss),
             "page_faults" => Ok(PerfEventType::PageFaults),
             "cpu_cycles" => Ok(PerfEventType::CpuCycles),
             "context_switches" => Ok(PerfEventType::ContextSwitches),

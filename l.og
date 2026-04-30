@@ -1,0 +1,6 @@
+[INFO  flextrace] using all perf events
+    
+[INFO  flextrace::perf] system does not support perf event event_stalled_cycles_frontend
+[INFO  flextrace::perf] system does not support perf event event_stalled_cycles_backend
+[INFO  flextrace::perf] system does not support perf event event_branch_instructions
+[ERROR flextrace::perf] ringbuf mpsc reciever dropped

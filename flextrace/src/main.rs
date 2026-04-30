@@ -141,6 +141,8 @@ async fn main() -> anyhow::Result<()> {
 
     event_list.push(PerfEventType::None);
 
+    let mut attached_events: Vec<(u64, String)> = Vec::new();
+
     // load and attach perf events, we allow the "all" argument to duplicate events incase people want
     // to do that for some reason and honestly if you pass in an argument like that unintentionally you had it coming lowk
     for event_arg in &opt.events {
@@ -155,11 +157,15 @@ async fn main() -> anyhow::Result<()> {
 
             if *&opt.processes.len() != 0  {
                 for pid in &opt.processes {
+                    attached_events.push((nextid, String::from("event type: ".to_owned() + &perf_event_enum.ebpf_from_self().unwrap() + " pid: " + &pid.to_string() + " period: " + &period_arg.unwrap_or(100000).to_string())));
+
                     perf_manager.attach_event(perf_event_enum, Some(*pid), period_arg, nextid)?;
                     nextid += 1;
                 }
             }
             else {
+                attached_events.push((nextid, String::from("event type: ".to_owned() + &perf_event_enum.ebpf_from_self().unwrap() + " pid: all " + " period: " + &period_arg.unwrap_or(100000).to_string())));
+
                 perf_manager.attach_event(perf_event_enum, None, period_arg, nextid)?;
                 nextid += 1;
             }
@@ -177,11 +183,15 @@ async fn main() -> anyhow::Result<()> {
                 
                  if *&opt.processes.len() != 0  {
                     for pid in &opt.processes {
+                        attached_events.push((nextid, String::from("event type: ".to_owned() + &perf_event_enum.ebpf_from_self().unwrap() + " pid: " + &pid.to_string() + " period: " + &period_arg.unwrap_or(100000).to_string())));
+
                         perf_manager.attach_event(perf_event_enum, Some(*pid), period_arg, nextid)?;
                         nextid += 1;
                     }
                 }
                 else {
+                    attached_events.push((nextid, String::from("event type: ".to_owned() + &perf_event_enum.ebpf_from_self().unwrap() + " pid: all " + " period: " + &period_arg.unwrap_or(100000).to_string())));
+
                     perf_manager.attach_event(perf_event_enum, None, period_arg, nextid)?;
                     nextid += 1;
                 }
@@ -199,7 +209,7 @@ async fn main() -> anyhow::Result<()> {
     let backend = CrosstermBackend::new(stderr);
     let mut terminal = Terminal::new(backend)?;
 
-    let mut app: State = State::new(perf_manager, opt.clone(), event_list);
+    let mut app: State = State::new(perf_manager, opt.clone(), event_list, attached_events, nextid);
 
     run_app(&mut terminal, &mut app).await?;
 

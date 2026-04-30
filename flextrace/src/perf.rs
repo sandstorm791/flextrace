@@ -17,7 +17,7 @@ pub struct PerfManager {
     pub event_rx: Receiver<PerfSample>,
     symbolizer: Symbolizer,
 
-    links: StdHashMap<u64, Vec<PerfEventLink>>,
+    pub links: StdHashMap<u64, Vec<PerfEventLink>>,
     pub event_list: Vec<String>,
 }
 
